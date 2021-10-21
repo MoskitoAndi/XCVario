@@ -146,6 +146,7 @@ double SPL06_007::get_pcomp(bool &ok)
 	// 	float t = (double(c0) * 0.5f) + (double(c1) * traw_sc);
 	// 	ESP_LOGI(FNAME,"P:%06x,%d  T:%06x PC:%f T:%f I2C E:%d",_praw, _praw, _traw, p/100, t , errors );
 	// }
+	ok = true;
 	return p;
 }
 
