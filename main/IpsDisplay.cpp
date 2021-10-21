@@ -1424,6 +1424,10 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			te_prev = te+step;
 		}
 	}
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
+		return;
+	}
 	// Polar Sink or Netto Sink
 	if( !(tick%5) ){
 		if( netto || ps_display.get() ){
@@ -1476,7 +1480,10 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			drawWifi(DISPLAY_W-27, FLOGO+2 );
 		drawCAN(DISPLAY_W-32, FLOGO+28);
 	}
-
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
+		return;
+	}
 	// S2F Command triangle
 	if( ((int)s2fd != s2fdalt && !((tick+1)%2) ) || !(tick+3%30) ) {
 		// ESP_LOGI(FNAME,"S2F in");
@@ -1571,7 +1578,10 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 		chargealt = chargev;
 		blankold = blank;
 	}
-
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
+		return;
+	}
 	// Temperature Value
 	if( (int)(temp*10) != tempalt && !(tick%12)) {
 		drawTemperature( 20, 38, temp );
@@ -1935,8 +1945,10 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 	float altitude = Units::Altitude( altitude_m );
 
 	vTaskDelay(3);
-	if( _menu )
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
 		return;
+	}
 
 	// WK-Indicator
 	if( flap_enable.get() && !(tick%7) )
@@ -2012,8 +2024,10 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		}
 	}
 	vTaskDelay(3);
-	if( _menu )
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
 		return;
+	}
 	// Temperature Value
 	if( (int)(temp*10) != tempalt && !(tick%11)) {
 		drawTemperature( FIELD_START+30, DISPLAY_H, temp );
@@ -2062,8 +2076,11 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		ucg->drawCircle( flx, fly, FLOGO/2 + (FLOGO/2)-3, UCG_DRAW_UPPER_RIGHT);
 		ucg->undoClipRange();
 	}
-	if( _menu )
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
 		return;
+	}
+
 	int s2fclip = s2fd;
 	if( s2fclip > MAXS2FTRI )
 		s2fclip = MAXS2FTRI;
@@ -2129,8 +2146,10 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		tyalt = ty;
 		pyalt = py;
 		vTaskDelay(3);
-		if( _menu )
+		if( _menu ){
+			xSemaphoreGive(spiMutex);
 			return;
+		}
 
 	}
 	// AS
@@ -2171,8 +2190,10 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		as_prev = airspeed;
 	}
 	// S2F command trend triangle
-	if( _menu )
+	if( _menu ){
+		xSemaphoreGive(spiMutex);
 		return;
+	}
 	if( ((int)s2fd != s2fdalt && !((tick+1)%2)) || !(tick%21) ) {
 		// Arrow pointing there
 		if( s2fmode ){
