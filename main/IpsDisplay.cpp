@@ -1361,8 +1361,8 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			ate_ms = ate_ms - polar_sink_ms;
 		}
 		else if( netto_mode.get() == NETTO_RELATIVE ){  // Super Netto, considering circling sink
-			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
-			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
+			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
+			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
 		}
 		netto=true;
 	}
@@ -1666,8 +1666,8 @@ void IpsDisplay::drawULDisplay( int airspeed_kmh, float te_ms, float ate_ms, flo
 			ate_ms = ate_ms - polar_sink_ms;
 		}
 		else if( netto_mode.get() == NETTO_RELATIVE ){  // Super Netto, considering circling sink
-			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
-			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
+			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
+			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
 		}
 		netto=true;
 	}
@@ -1910,8 +1910,8 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 			ate_ms = ate_ms - polar_sink_ms;
 		}
 		else if( netto_mode.get() == NETTO_RELATIVE ){  // Super Netto, considering circling sink
-			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
-			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( airspeed_kmh );
+			te_ms = te_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
+			ate_ms = ate_ms - polar_sink_ms + Speed2Fly.circlingSink( ias.get() );
 		}
 		netto=true;
 	}
