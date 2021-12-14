@@ -378,7 +378,7 @@ void Protocols::parseNMEA( const char *astr ){
 					ESP_LOGI(FNAME,"Volume change limit reached steps: %d volume: %.0f", steps, v );
 			}
 		}
-		else if( !strncmp( str, "$PFLAU,", 3 )) {
+		else if( !strncmp( str, "$PFLAU,", 6 )) {
 			Flarm::parsePFLAU( str );
 			if( Flarm::bincom  ) {
 				Flarm::bincom--;
