@@ -1933,7 +1933,8 @@ bool IpsDisplay::drawCompass(int16_t x, int16_t y, bool wind_dirty, bool compass
 			compass_overlap = false;
 			ret = true;
 		}
-		if( !compass_done && compass_enable.get() && compass_calibrated.get() && (display_style.get() == DISPLAY_UL)){
+		}
+	if( !compass_done && compass_enable.get() && compass_calibrated.get() && (display_style.get() == DISPLAY_UL)){
 		compass_done = true;
 		int heading = static_cast<int>(rintf(mag_hdt.get()));
 		if( heading >= 360 )
@@ -1947,17 +1948,16 @@ bool IpsDisplay::drawCompass(int16_t x, int16_t y, bool wind_dirty, bool compass
 				sprintf(s," %4d", heading );
 			ucg->setColor( COLOR_WHITE );
 			ucg->setFont(ucg_font_fub20_hr, true);
-			//ucg->setPrintPos(113-ucg->getStrWidth(s), 220);
+			ucg->setPrintPos(165-ucg->getStrWidth(s), 220);
 			ucg->print(s);
 			ucg->setColor( COLOR_HEADER );
-			ucg->setPrintPos(113+5, 220);
+			ucg->setPrintPos(165+5, 220);
 			ucg->print("° ");
 			prev_heading = heading;
 			compass_overlap = false;
 			ret = true;
 		}
 	}
-	
 	return ret;
 }
 
