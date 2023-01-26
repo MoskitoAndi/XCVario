@@ -1834,7 +1834,7 @@ bool IpsDisplay::drawCompass(int16_t x, int16_t y, bool wind_dirty, bool compass
 	if( _menu )
 		return ret;
 	// ESP_LOGI(FNAME, "drawCompass: %d ", wind_dirty );
-	compass_done = false;
+	bool compass_done = false;
 	if( (wind_display.get() & WD_DIGITS) || (wind_display.get() & WD_ARROW) ){
 		int winddir=0;
 		float wind=0;
