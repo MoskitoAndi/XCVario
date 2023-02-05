@@ -1969,7 +1969,7 @@ bool IpsDisplay::drawCompass(int16_t x, int16_t y, bool _dirty, bool compass_dir
 			ucg->setPrintPos(165+5, 220);
 			ucg->print("° ");
 			prev_heading = heading;
-			compass_overlap = false;
+			compass_dirty = false;
 			ret = true;
 		}
 	}
