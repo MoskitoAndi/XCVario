@@ -986,18 +986,18 @@ void SetupMenu::glider_menu_create( MenuEntry *poe ){
 void SetupMenu::options_menu_create_units( MenuEntry *top ){
 	SetupMenuSelect * alu = new SetupMenuSelect( "Altimeter", false, 0, true, &alt_unit );
 	alu->addEntry( "Meter (m)");
-	alu->addEntry( "Foot  (ft)");
-	alu->addEntry( "FL    (FL)");
+	alu->addEntry( "Foot (ft)");
+	alu->addEntry( "FL (FL)");
 	top->addEntry( alu );
 	SetupMenuSelect * iau = new SetupMenuSelect( "Airspeed", false , 0, true, &ias_unit );
-	iau->addEntry( "Kilom. (Km/h)");
-	iau->addEntry( "Miles  (mph)");
-	iau->addEntry( "Knots  (kt)");
+	iau->addEntry( "Kilom./hour (Km/h)");
+	iau->addEntry( "Miles/hour (mph)");
+	iau->addEntry( "Knots (kt)");
 	top->addEntry( iau );
 	SetupMenuSelect * vau = new SetupMenuSelect( "Vario", false , update_rentrys, true, &vario_unit );
 	vau->addEntry( "Meters/sec (m/s)");
-	vau->addEntry( "100ft/min (cft/min)");
-	vau->addEntry( "Knots     (knots)");
+	vau->addEntry( "Feet/min x 100 (ft/min)");
+	vau->addEntry( "Knots (knots)");
 	top->addEntry( vau );
 	SetupMenuSelect * teu = new SetupMenuSelect( "Temperature", false , 0, true, &temperature_unit );
 	teu->addEntry( "Celcius");
@@ -1008,6 +1008,10 @@ void SetupMenu::options_menu_create_units( MenuEntry *top ){
 	qnhi->addEntry( "Hectopascal");
 	qnhi->addEntry( "InchMercury");
 	top->addEntry( qnhi );
+	SetupMenuSelect * dst = new SetupMenuSelect( "Distance", false , 0, true, &dst_unit );
+	dst->addEntry( "Meter (m)");
+	dst->addEntry( "Feet (ft)");
+	top->addEntry( dst );
 }
 
 void SetupMenu::options_menu_create_flarm( MenuEntry *top ){
@@ -1290,12 +1294,13 @@ void SetupMenu::options_menu_create_wireless_custom_id( MenuEntry *top ){
 void SetupMenu::options_menu_create_wireless( MenuEntry *top )
 {
 	SetupMenuSelect * btm = new SetupMenuSelect( PROGMEM "Wireless", true, 0, true, &wireless_type );
-	btm->setHelp( PROGMEM "Activate wireless interface type to connect navigation devices, or to another XCVario as client");
+	btm->setHelp( PROGMEM "Activate wireless interface type to connect navigation devices, or to another XCVario as client", 220 );
 	btm->addEntry( "Disable");
 	btm->addEntry( "Bluetooth");
 	btm->addEntry( "Wireless Master");
 	btm->addEntry( "Wireless Client");
 	btm->addEntry( "Wireless Standalone");
+	btm->addEntry( "Bluetooth LE");
 	top->addEntry( btm );
 
 	SetupMenu * wlrt = new SetupMenu( PROGMEM "WL Routing" );
@@ -1406,7 +1411,7 @@ void SetupMenu::options_menu_create( MenuEntry *opt ){
 	// Units
 	SetupMenu * un = new SetupMenu( "Units" );
 	opt->addEntry( un );
-	un->setHelp( PROGMEM "Setup altimeter, airspeed indicator and variometer with European Metric, American, British or Australian units", 200);
+	un->setHelp( PROGMEM "Setup altimeter, airspeed indicator and variometer with European Metric, American, British or Australian units", 205);
 	un->addCreator(options_menu_create_units);
 
 	SetupMenuSelect * amode = new SetupMenuSelect( "Airspeed Mode",	false, 0, true, &airspeed_mode );

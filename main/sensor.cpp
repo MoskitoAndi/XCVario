@@ -13,6 +13,7 @@
 #include "ABPMRR.h"
 #include "BMPVario.h"
 #include "BTSender.h"
+#include "BLESender.h"
 #include "Protocols.h"
 #include "DS18B20.h"
 #include "Setup.h"
@@ -144,6 +145,7 @@ static int32_t cur_gyro_bias[3];
 // Magnetic sensor / compass
 Compass *compass = 0;
 BTSender btsender;
+BLESender blesender;
 
 static float baroP=0; // barometric pressure
 static float temperature=15.0;
@@ -787,16 +789,17 @@ void readTemp(void *pvParameters){
 		// ESP_LOGI(FNAME,"Battery=%f V", battery );
 		if( !SetupCommon::isClient() ) {  // client Vario will get Temperature info from main Vario
 			t = ds18b20.getTemp();
+			// ESP_LOGI(FNAME,"Temp %f", t );
 			if( t ==  DEVICE_DISCONNECTED_C ) {
 				if( gflags.validTemperature == true ) {
-					ESP_LOGI(FNAME,"Temperatur Sensor disconnected, please plug Temperature Sensor");
+					ESP_LOGI(FNAME,"Temperatur Sensor disconnected");
 					gflags.validTemperature = false;
 				}
 			}
 			else
 			{
 				if( gflags.validTemperature == false ) {
-					ESP_LOGI(FNAME,"Temperatur Sensor connected, temperature valid");
+					ESP_LOGI(FNAME,"Temperatur Sensor connected");
 					gflags.validTemperature = true;
 				}
 				// ESP_LOGI(FNAME,"temperature=%2.1f", temperature );
@@ -808,7 +811,7 @@ void readTemp(void *pvParameters){
 					temp_prev = temperature;
 				}
 			}
-			ESP_LOGV(FNAME,"temperature=%f", temperature );
+			// ESP_LOGV(FNAME,"T=%f", temperature );
 			Flarm::tick();
 			if( compass )
 				compass->tick();
@@ -821,7 +824,7 @@ void readTemp(void *pvParameters){
 		Flarm::progress();
 		vTaskDelayUntil(&xLastWakeTime, 1000/portTICK_PERIOD_MS);
 		esp_task_wdt_reset();
-		if( (ttick++ % 5) == 0) {
+		if( (ttick++ % 50) == 0) {
 			ESP_LOGI(FNAME,"Free Heap: %d bytes", heap_caps_get_free_size(MALLOC_CAP_8BIT) );
 			if( uxTaskGetStackHighWaterMark( tpid ) < 256 )
 				ESP_LOGW(FNAME,"Warning temperature task stack low: %d bytes", uxTaskGetStackHighWaterMark( tpid ) );
@@ -1049,6 +1052,9 @@ void system_startup(void *args){
 	if( wireless == WL_BLUETOOTH ) {
 		wireless_id="BT ID: ";
 		btsender.begin();
+	}
+	else if( wireless == WL_BLUETOOTH_LE ){
+		blesender.begin();
 	}
 	else
 		wireless_id="WLAN SID: ";

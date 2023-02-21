@@ -414,9 +414,9 @@ void Flarm::initFlarmWarning(){
 	ucg->setPrintPos(130,50);
 	ucg->printf("o'Clock");
 	ucg->setPrintPos(130,110);
-	ucg->printf("Distance");
+	ucg->printf("Distance %s", Units::DistanceUnit() );
 	ucg->setPrintPos(130,190);
-	ucg->printf("Vertical");
+	ucg->printf("Vertical %s", Units::AltitudeUnitMeterOrFeet() );
 
 	oldDist = 0;
 	oldVertical = 0;
@@ -462,7 +462,6 @@ void Flarm::drawFlarmWarning(){
 		ucg->setFontPosCenter();
 		ucg->setColor( COLOR_WHITE );
 		ucg->setFont(ucg_font_fub20_hr, true);
-
 		ucg->printf( "%d ", AlarmLevel );
 		alarmOld = AlarmLevel;
 	}
@@ -470,9 +469,10 @@ void Flarm::drawFlarmWarning(){
 		ucg->setPrintPos(130, 140 );
 		ucg->setFontPosCenter();
 		ucg->setColor( COLOR_WHITE );
-		ucg->setFont(ucg_font_fub25_hr, true );
-		char d[16];
-		sprintf(d,"%d m   ", RelativeDistance );
+		ucg->setFont(ucg_font_fub25_hr, true);
+		char d[32] = "\0";
+		int dist = rint(Units::Distance(RelativeDistance)/10)*10;
+		sprintf(d,"%d   ",dist);
 		ucg->printf( d );
 		oldDist = RelativeDistance;
 	}
@@ -481,14 +481,12 @@ void Flarm::drawFlarmWarning(){
 		ucg->setFontPosCenter();
 		ucg->setColor( COLOR_WHITE );
 		ucg->setFont(ucg_font_fub25_hr, true);
-		char v[16];
+		char v[32];
 		int vdiff = RelativeVertical;
-		const char *unit = "m";
 		if( alt_unit.get() != 0 ){  // then its ft or FL -> feet
-			unit = "ft";
-			vdiff = (vdiff/10)*10;
+			vdiff = rint((vdiff/10)*10);
 		}
-		sprintf(v,"%d %s   ",  vdiff, unit );
+		sprintf(v,"%d    ",  vdiff );
 		ucg->printf( v );
 		float relDist =  (float)RelativeDistance;
 		if( RelativeBearing < 0 )
@@ -506,7 +504,7 @@ void Flarm::drawFlarmWarning(){
 		ucg->setFontPosCenter();
 		ucg->setColor( COLOR_WHITE );
 		ucg->setFont(ucg_font_fub25_hr, true );
-		char b[16];
+		char b[32];
 		int quant=15;
 		if( RelativeBearing < 0 )
 			quant=-15;

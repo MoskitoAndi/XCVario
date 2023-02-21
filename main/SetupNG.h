@@ -54,7 +54,7 @@ typedef enum e_display_style  { DISPLAY_AIRLINER, DISPLAY_RETRO, DISPLAY_UL } di
 typedef enum e_display_variant { DISPLAY_WHITE_ON_BLACK, DISPLAY_BLACK_ON_WHITE } display_variant_t;
 typedef enum e_s2f_type  { S2F_HW_SWITCH, S2F_HW_PUSH_BUTTON, S2F_HW_SWITCH_INVERTED } e_s2f_type;
 typedef enum e_serial_route_type { RT_XCVARIO, RT_WIRELESS, RT_S1, RT_S2, RT_CAN } e_serial_routing_t;
-typedef enum e_wireless_type { WL_DISABLE, WL_BLUETOOTH, WL_WLAN_MASTER, WL_WLAN_CLIENT, WL_WLAN_STANDALONE } e_wireless_t;
+typedef enum e_wireless_type { WL_DISABLE, WL_BLUETOOTH, WL_WLAN_MASTER, WL_WLAN_CLIENT, WL_WLAN_STANDALONE, WL_BLUETOOTH_LE } e_wireless_t;
 typedef enum e_audiomode_type { AM_VARIO, AM_S2F, AM_SWITCH, AM_AUTOSPEED, AM_EXTERNAL, AM_FLAP, AM_AHRS } e_audiomode_t;
 typedef enum e_audio_tone_mode { ATM_SINGLE_TONE, ATM_DUAL_TONE } e_audio_tone_mode_t;
 typedef enum e_audio_chopping_style { AUDIO_CHOP_SOFT, AUDIO_CHOP_HARD } e_audio_chopping_style_t;
@@ -73,6 +73,7 @@ typedef enum e_wind_logging { WLOG_DISABLE, WLOG_WIND, WLOG_GYRO_MAG, WLOG_BOTH 
 typedef enum e_unit_type{ UNIT_NONE, UNIT_TEMPERATURE, UNIT_ALT, UNIT_SPEED, UNIT_VARIO, UNIT_QNH } e_unit_type_t;
 typedef enum e_temperature_unit { T_CELCIUS, T_FAHRENHEIT, T_KELVIN } e_temperature_unit_t;
 typedef enum e_alt_unit { ALT_UNIT_METER, ALT_UNIT_FT, ALT_UNIT_FL } e_alt_unit_t;
+typedef enum e_dst_unit { DST_UNIT_KM, DST_UNIT_FT, DST_UNIT_MILES } e_dst_unit_t;
 typedef enum e_speed_unit { SPEED_UNIT_KMH, SPEED_UNIT_MPH, SPEED_UNIT_KNOTS } e_speed_unit_t;
 typedef enum e_vario_unit { VARIO_UNIT_MS, VARIO_UNIT_FPM, VARIO_UNIT_KNOTS } e_vario_unit_t;
 typedef enum e_qnh_unit { QNH_HPA, QNH_INHG } e_qnh_unit_t;
@@ -511,9 +512,10 @@ extern SetupNG<float>  		flap_minus_1;
 extern SetupNG<float>  		flap_0;
 extern SetupNG<float>  		flap_plus_1;
 extern SetupNG<float>  		flap_plus_2;
-extern SetupNG<int>  		alt_unit;
 extern SetupNG<int>  		alt_quantization;
 extern SetupNG<int>  		ias_unit;
+extern SetupNG<int>  		alt_unit;
+extern SetupNG<int>  		dst_unit;
 extern SetupNG<int>  		vario_unit;
 extern SetupNG<int>  		temperature_unit;
 extern SetupNG<int>  		qnh_unit;
