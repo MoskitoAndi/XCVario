@@ -36,7 +36,7 @@ public:
 	// virtual methods to be implemented in derived class
 	virtual bool init() = 0;
 	virtual bool erase() = 0;
-	virtual bool write( bool sync=true) = 0;
+	virtual bool write() = 0;
 	virtual bool commit() = 0;
 	virtual void setValueStr( const char * val ) = 0;
 	virtual bool mustReset() = 0;
@@ -45,6 +45,7 @@ public:
 	virtual const char* key() = 0;
 	virtual char typeName() = 0;
 	virtual bool sync() = 0;
+	virtual bool dirty() = 0;
 	virtual uint8_t getSync() = 0;
 	// virtual char* showSetting( bool nondefault=true ) = 0;
 
@@ -66,24 +67,18 @@ public:
 	static bool isCanClient();
 	static bool isCanMaster();
     static bool isWired();
+    static void commitDirty();
 
     static bool mustSync( uint8_t sync);
 	static bool haveWLAN();
-    static bool commitNow();
-    static bool get_dirty() { return _dirty; };
-    static void set_dirty( bool dirt ) { _dirty = dirt; };
 
     // variables
     static std::vector<SetupCommon *> *instances;
-    static QueueHandle_t commitSema;
 
 protected:
 
 private:
-	static void timeout(QueueHandle_t arg);
-    static esp_timer_handle_t _timer;
 	static char _ID[16];
 	static char default_id[6];
-	static bool _dirty;
 };
 

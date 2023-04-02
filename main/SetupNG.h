@@ -108,10 +108,10 @@ void change_bal();
 
 typedef struct setup_flags{
 	bool _reset    :1;
-	bool _wait_ack :1;
 	bool _volatile :1;
 	uint8_t _sync  :2;
 	uint8_t _unit  :3;
+	bool _dirty    :1;
 } t_setup_flags;
 
 template<typename T>
@@ -147,9 +147,13 @@ public:
 		flags._reset = reset;
 		flags._sync = sync;
 		flags._volatile = vol;
-		flags._wait_ack = false;
 		flags._unit = unit;
+		flags._dirty = false;
 		_action = action;
+	}
+
+	virtual bool dirty() {
+		return flags._dirty;
 	}
 
 	virtual void setValueStr( const char * val ){
@@ -181,7 +185,9 @@ public:
 				t.z = z;
 				memcpy((char *)&_value, &t, sizeof(t) );
 			}
+			flags._dirty = true;
 		}
+
 	}
 
 	inline T* getPtr() {
@@ -250,10 +256,9 @@ public:
 		if( flags._volatile == VOLATILE ){
 			return true;
 		}
-		bool ret=write();
-		SetupCommon::set_dirty( true );
+		flags._dirty = true;
 		// ESP_LOGI(FNAME,"set() %s", _key );
-		return ret;
+		return true;
 	}
 
 	e_unit_type_t unitType() {
@@ -264,7 +269,6 @@ public:
 		if( aval != _value ){
 			ESP_LOGI(FNAME,"sync to value client has acked");
 			_value = aval;
-			flags._wait_ack = false;
 		}
 	}
 
@@ -276,33 +280,29 @@ public:
 		if( SetupCommon::mustSync( flags._sync ) ){
 			// ESP_LOGI( FNAME,"Now sync %s", _key );
 			sendSetup( flags._sync, _key, typeName(), (void *)(&_value), sizeof( _value ) );
-			if( isMaster() && flags._sync == SYNC_BIDIR )
-				flags._wait_ack = true;
 			return true;
 		}
 		return false;
 	}
 
 	bool commit() {
-		// ESP_LOGI(FNAME,"NVS commit(): ");
+		// ESP_LOGI(FNAME,"NVS commit(): %s ", _key );
+		if( flags._volatile != PERSISTENT ){
+				return true;
+		}
+		write();
 		bool ret = NVS.commit();
 		if( !ret )
 			return false;
-		SetupCommon::set_dirty( false );
+		flags._dirty = false;
 		return true;
 	}
 
-	bool write(bool dosync=true) {
+	bool write() { // do the set blob that actually seems to write to the flash either
 		// ESP_LOGI(FNAME,"NVS write(): ");
-		if( dosync )
-			sync();
-
-		if( flags._volatile != PERSISTENT ){
-			return true;
-		}
 		char val[30];
 		value_str(val);
-		ESP_LOGI(FNAME,"NVS set blob(key:%s, val: %s addr:%p, len:%d )", _key, val, &_value, sizeof( _value ) );
+		ESP_LOGI(FNAME,"NVS set blob(key:%s, val: %s, len:%d )", _key, val, sizeof( _value ) );
 		bool ret = NVS.setBlob( _key, (void *)(&_value), sizeof( _value ) );
 		if( !ret )
 			return false;
@@ -329,7 +329,6 @@ public:
 		if ( !ret ){
 			ESP_LOGE(FNAME, "%s: NVS nvs_get_blob error", _key );
 			set( _default );  // try to init
-			write(false);
 			commit();
 		}
 		else {
@@ -348,7 +347,6 @@ public:
 					ESP_LOGE(FNAME, "NVS nvs_get_blob returned error");
 					erase();
 					set( _default );  // try to init
-					write(false);
 					commit();
 				}
 				else {

@@ -11,12 +11,10 @@ xSemaphoreHandle nvMutex=NULL;
 ESP32NVS * ESP32NVS::Instance = 0;
 
 ESP32NVS::ESP32NVS(){
-	_nvs_handle = 0;
 }
 
 bool ESP32NVS::begin(){
 	ESP_LOGI(FNAME,"ESP32NVS::begin()");
-	_nvs_handle = 0;
 	nvMutex=xSemaphoreCreateMutex();
 	esp_err_t _err = nvs_flash_init();
 	if (_err == ESP_ERR_NVS_NO_FREE_PAGES) {
@@ -43,7 +41,7 @@ void ESP32NVS::close( nvs_handle_t h ){
 
 
 bool ESP32NVS::commit(){
-	ESP_LOGI(FNAME,"ESP32NVS::commit()");
+	// ESP_LOGI(FNAME,"ESP32NVS::commit()");
 	bool ret=true;
 	xSemaphoreTake(nvMutex,portMAX_DELAY );
 	nvs_handle_t h = open();
@@ -58,7 +56,7 @@ bool ESP32NVS::commit(){
 }
 
 bool ESP32NVS::setBlob(const char * key, void* value, size_t length){
-	ESP_LOGI(FNAME,"ESP32NVS::setBlob(key:%s, addr:%p, len:%d)", key, value, length );
+	// ESP_LOGI(FNAME,"ESP32NVS::setBlob(key:%s, addr:%p, len:%d)", key, value, length );
 	bool ret=true;
 	xSemaphoreTake(nvMutex,portMAX_DELAY );
 	nvs_handle_t h = open();
@@ -69,7 +67,7 @@ bool ESP32NVS::setBlob(const char * key, void* value, size_t length){
 		ESP_LOGE(FNAME,"set blob error %d", _err );
 		ret=false;
 	}
-	ESP_LOGI(FNAME,"set blob OK");
+	// ESP_LOGI(FNAME,"set blob OK");
 	close(h);
 	xSemaphoreGive(nvMutex);
 	return ret;
