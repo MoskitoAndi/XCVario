@@ -168,7 +168,7 @@ uint8_t g_col_header_light_b=g_col_highlight;
 uint16_t gear_warning_holdoff = 0;
 uint8_t gyro_flash_savings=0;
 
-t_global_flags gflags = { true, false, false, false, false, false, false, false, false, false, false, false, false, false };
+t_global_flags gflags = { true, false, false, false, false, false, false, false, false, false, false, false, false, false, false };
 
 int  ccp=60;
 float tas = 0;
@@ -334,7 +334,7 @@ void drawDisplay(void *pvParameters){
 			// G-Load Display
 			// ESP_LOGI(FNAME,"Active Screen = %d", active_screen );
 			if( (((float)accelG[0] > gload_pos_thresh.get() || (float)accelG[0] < gload_neg_thresh.get()) && gload_mode.get() == GLOAD_DYNAMIC ) ||
-					( gload_mode.get() == GLOAD_ALWAYS_ON ) || ((active_screen << SCREEN_GMETER) & 1)  )
+					( gload_mode.get() == GLOAD_ALWAYS_ON ) || (active_screen == SCREEN_GMETER)  )
 			{
 				if( !gflags.gLoadDisplay ){
 					gflags.gLoadDisplay = true;
@@ -348,11 +348,20 @@ void drawDisplay(void *pvParameters){
 			if( gflags.gLoadDisplay ) {
 				display->drawLoadDisplay( (float)accelG[0] );
 			}
+			if( active_screen == SCREEN_HORIZON ) {
+				float roll = -IMU::getRollRad();
+				float pitch = IMU::getPitchRad();
+				display->drawHorizon( pitch, roll, 0 );
+				gflags.horizon = true;
+			}
+			else{
+				gflags.horizon = false;
+			}
 			// G-Load Alarm when limits reached
 			if( gload_mode.get() != GLOAD_OFF  ){
 				if( (float)accelG[0] > gload_pos_limit.get() || (float)accelG[0] < gload_neg_limit.get()  ){
 					if( !gflags.gload_alarm ) {
-						Audio::alarm( true );
+						Audio::alarm( true, DigitalPoti->getRange()*(gload_alarm_volume.get()/100) );
 						gflags.gload_alarm = true;
 					}
 				}else
@@ -364,7 +373,7 @@ void drawDisplay(void *pvParameters){
 				}
 			}
 			// Vario Screen
-			if( !(gflags.stall_warning_active || gflags.gear_warning_active || gflags.flarmWarning || gflags.gLoadDisplay )  ) {
+			if( !(gflags.stall_warning_active || gflags.gear_warning_active || gflags.flarmWarning || gflags.gLoadDisplay || gflags.horizon )  ) {
 				// ESP_LOGI(FNAME,"TE=%2.3f", te_vario.get() );
 				display->drawDisplay( airspeed, te_vario.get(), aTE, polar_sink, altitude.get(), t, battery, s2f_delta, as2f, average_climb.get(), Switch::getCruiseState(), gflags.standard_setting, flap_pos.get() );
 			}
@@ -438,12 +447,12 @@ static void grabMPU()
 	//	ESP_LOGI(FNAME, "Gyro X:%+.2f Y:%+.2f Z:%+.2f T=%f\n", gyroDPS.x, gyroDPS.y, gyroDPS.z, MPU.getTemperature());
 	// }
 	bool goodAccl = true;
-	if( abs( accelG.x - accelG_Prev.x ) > 1 || abs( accelG.y - accelG_Prev.y ) > 1 || abs( accelG.z - accelG_Prev.z ) > 1 ) {
+	if( abs( accelG.x - accelG_Prev.x ) > 5 || abs( accelG.y - accelG_Prev.y ) > 5 || abs( accelG.z - accelG_Prev.z ) > 5 ) {
 		MPU.acceleration(&accelRaw);
 		accelG = mpud::accelGravity(accelRaw, mpud::ACCEL_FS_8G);
-		if( abs( accelG.x - accelG_Prev.x ) > 1 || abs( accelG.y - accelG_Prev.y ) > 1 || abs( accelG.z - accelG_Prev.z ) > 1 ){
+		if( abs( accelG.x - accelG_Prev.x ) > 5 || abs( accelG.y - accelG_Prev.y ) > 5 || abs( accelG.z - accelG_Prev.z ) > 5 ){
 			goodAccl = false;
-			ESP_LOGE(FNAME, "accelaration change > 1 g in 0.2 S:  X:%+.2f Y:%+.2f Z:%+.2f", -accelG[2], accelG[1], accelG[0] );
+			ESP_LOGE(FNAME, "accelaration change > 5 g in 0.2 S:  X:%+.2f Y:%+.2f Z:%+.2f", -accelG[2], accelG[1], accelG[0] );
 		}
 	}
 	bool goodGyro = true;

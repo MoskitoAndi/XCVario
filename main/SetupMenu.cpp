@@ -102,7 +102,7 @@ void init_screens(){
 	uint32_t scr = menu_screens.get();
 	screen_gmeter.set( (scr >> SCREEN_GMETER) & 1);
 	// 	screen_centeraid.set( (scr >> SCREEN_THERMAL_ASSISTANT) & 1);
-	screen_flarm.set( (scr >> SCREEN_FLARM) & 1);
+	screen_horizon.set( (scr >> SCREEN_HORIZON) & 1);
 	screen_mask_len = 1; // default vario
 	while( scr ){
 		scr = scr >> 1;
@@ -154,11 +154,11 @@ int config_gear_warning( SetupMenuSelect * p ){
 int upd_screens( SetupMenuSelect * p ){
 	uint32_t screens =
 			( (uint32_t)screen_gmeter.get() << (SCREEN_GMETER)  |
-					//		( (uint32_t)screen_centeraid.get() << (SCREEN_THERMAL_ASSISTANT) ) |
-					( (uint32_t)screen_flarm.get() << (SCREEN_FLARM) )
+			//		( (uint32_t)screen_centeraid.get() << (SCREEN_THERMAL_ASSISTANT) ) |
+			( (uint32_t)screen_horizon.get() << (SCREEN_HORIZON) )
 			);
 	menu_screens.set( screens );
-	init_screens();
+	// init_screens();
 	return 0;
 }
 
@@ -310,6 +310,12 @@ void print_fb( SetupMenuValFloat * p, float wingload ){
 
 int water_adj( SetupMenuValFloat * p )
 {
+	if( (ballast_kg.get() > polar_max_ballast.get()) || (ballast_kg.get() < 0) ){
+		ballast_kg.set(0);
+		ballast_kg.commit();
+		delay(1000);
+	}
+	p->setMax(polar_max_ballast.get());
 	float wingload = (ballast_kg.get() + crew_weight.get()+ empty_weight.get()) / polar_wingarea.get();
 	ESP_LOGI(FNAME,"water_adj() wingload:%.1f empty: %.1f cw:%.1f water:%.1f", wingload, empty_weight.get(), crew_weight.get(), ballast_kg.get() );
 	print_fb( p, wingload );
@@ -605,19 +611,19 @@ void SetupMenu::delete_subtree(){
 void SetupMenu::press(){
 	if( (selected != this) || focus )
 		return;
-	// ESP_LOGI(FNAME,"press() active_srceen %d, pressed %d inSet %d  subtree_created: %d mptr: %p", active_screen, pressed, gflags.inSetup, subtree_created, menu_create_ptr );
+	ESP_LOGI(FNAME,"press() active_srceen %d, pressed %d inSet %d  subtree_created: %d mptr: %p", active_screen, pressed, gflags.inSetup, subtree_created, menu_create_ptr );
 	create_subtree();
 	if( !gflags.inSetup ){
 		active_screen = 0;
-		while( !active_screen && (screen_index < screen_mask_len) ){
+		while( !active_screen && (screen_index <= screen_mask_len) ){
 			if( menu_screens.get() & (1 << screen_index) ){
-				active_screen = ( 1 << screen_index );
-				// ESP_LOGI(FNAME,"New active_screen: %d", active_screen );
+				active_screen = screen_index;
+				ESP_LOGI(FNAME,"New active_screen: %d", active_screen );
 			}
 			screen_index++;
 		}
-		if( screen_index >= screen_mask_len ){
-			// ESP_LOGI(FNAME,"select vario screen");
+		if( screen_index > screen_mask_len ){
+			ESP_LOGI(FNAME,"select vario screen");
 			screen_index = 0;
 			active_screen = 0; // fall back into default vario screen after optional screens
 		}
@@ -710,6 +716,14 @@ void SetupMenu::vario_menu_create_s2f( MenuEntry *top ){
 	s2fmod->addEntry( PROGMEM"Flap");
 	s2fmod->addEntry( PROGMEM"AHRS-Gyro");
 	top->addEntry( s2fmod );
+
+	SetupMenuSelect * s2fsw = new SetupMenuSelect( PROGMEM"S2F Switch", RST_NONE , 0, false, &s2f_switch_type );
+	top->addEntry( s2fsw );
+	s2fsw->setHelp( PROGMEM "Select S2F switch type, either a normal switch, a push button toggling S2F mode any time pressed, or disabled");
+	s2fsw->addEntry( PROGMEM"Switch");
+	s2fsw->addEntry( PROGMEM"Push Button");
+	s2fsw->addEntry( PROGMEM"Switch Invert");
+	s2fsw->addEntry( PROGMEM"Disable");
 
 	SetupMenuValFloat * autospeed = new SetupMenuValFloat( PROGMEM"S2F AutoSpeed", "", 20.0, 250.0, 1.0, update_s2f_speed, false, &s2f_speed );
 	top->addEntry( autospeed );
@@ -1036,7 +1050,7 @@ void SetupMenu::options_menu_create_flarm( MenuEntry *top ){
 	flarml->addEntry( PROGMEM"Level 3");
 	top->addEntry( flarml );
 
-	SetupMenuValFloat * flarmv = new SetupMenuValFloat( PROGMEM"Alarm Volume",  "%", 20, 125, 1, 0, false, &flarm_volume  );
+	SetupMenuValFloat * flarmv = new SetupMenuValFloat( PROGMEM"Alarm Volume",  "%", 20, 100, 1, 0, false, &flarm_volume  );
 	flarmv->setHelp( PROGMEM "Maximum volume FLARM alarm audio warning");
 	top->addEntry( flarmv );
 
@@ -1404,6 +1418,10 @@ void SetupMenu::options_menu_create_gload( MenuEntry *top ){
 	gmneg->setPrecision( 1 );
 	gmneg->setHelp(PROGMEM"Maximum negative G-Load measured since last reset");
 
+	SetupMenuValFloat * gloadalvo = new SetupMenuValFloat( PROGMEM"Alarm Volume",  "%", 20, 100, 1, 0, false, &gload_alarm_volume  );
+	gloadalvo->setHelp( PROGMEM "Maximum volume of G-Load alarm audio warning");
+	top->addEntry( gloadalvo );
+
 	SetupMenuSelect * gloadres = new SetupMenuSelect( PROGMEM"G-Load reset", RST_NONE, gload_reset, false, 0 );
 	gloadres->setHelp(PROGMEM "Option to reset stored maximum positive and negative G-load values");
 	gloadres->addEntry( PROGMEM"Reset");
@@ -1546,6 +1564,12 @@ void SetupMenu::system_menu_create_hardware_rotary_screens( MenuEntry *top ){
 	scrgmet->addEntry( PROGMEM"Disable");
 	scrgmet->addEntry( PROGMEM"Enable");
 	top->addEntry(scrgmet);
+	if( gflags.ahrsKeyValid ){
+		SetupMenuSelect * horizon = new SetupMenuSelect( PROGMEM"Horizon", RST_NONE, upd_screens, true, &screen_horizon );
+		horizon->addEntry( PROGMEM"Disable");
+		horizon->addEntry( PROGMEM"Enable");
+		top->addEntry(horizon);
+	}
 }
 
 void SetupMenu::system_menu_create_hardware_rotary( MenuEntry *top ){
@@ -1605,6 +1629,48 @@ void SetupMenu::system_menu_create_hardware_ahrs_lc( MenuEntry *top ){
 }
 
 
+void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
+	SetupMenuValFloat * ahrsgf = new SetupMenuValFloat( PROGMEM"Gyro Max Trust", "x", 0, 100, 1, 0, false, &ahrs_gyro_factor  );
+	ahrsgf->setPrecision( 0 );
+	ahrsgf->setHelp(PROGMEM"Gyro trust factor in artifical horizont bank and pitch");
+	top->addEntry( ahrsgf );
+
+	SetupMenuValFloat * ahrsgfm = new SetupMenuValFloat( PROGMEM"Gyro Min Trust", "x", 0, 100, 1, 0, false, &ahrs_min_gyro_factor  );
+	ahrsgfm->setPrecision( 0 );
+	ahrsgfm->setHelp(PROGMEM"Minimum Gyro trust factor in artifical horizont bank and pitch");
+	top->addEntry( ahrsgfm );
+
+	SetupMenuValFloat * ahrsdgf = new SetupMenuValFloat( PROGMEM"Gyro Dyanmics", "", 0.5, 10, 0.1, 0, false, &ahrs_dynamic_factor  );
+	ahrsdgf->setHelp(PROGMEM"Gyro dynamics factor, higher value trusts more gyro when load factor is different to one");
+	top->addEntry( ahrsdgf );
+
+	SetupMenuValFloat * gyrog = new SetupMenuValFloat( PROGMEM"Gyro Gating", "°", 0, 10, 0.1, 0, false, &gyro_gating  );
+	gyrog->setHelp( PROGMEM"Minimum accepted gyro rate in degree per second");
+	top->addEntry( gyrog );
+
+	SetupMenuValFloat * virtglp = new SetupMenuValFloat( PROGMEM"Virtual G Lowpass", "", 0, 1, 0.005, 0, false, &ahrs_virt_g_lowpass  );
+	virtglp->setPrecision( 3 );
+	virtglp->setHelp( PROGMEM"Lowpass factor for virtual gravity from airspeed and omega or centripedal force compensation");
+	top->addEntry( virtglp );
+
+	SetupMenuValFloat * gflp = new SetupMenuValFloat( PROGMEM"G-Force Lowpass", "", 0, 1, 0.005, 0, false, &ahrs_gforce_lp  );
+	gflp->setHelp( PROGMEM"Lowpass factor to filter g force for loadfactor dependent bank calculation");
+	gflp->setPrecision( 3 );
+	top->addEntry( gflp );
+
+	SetupMenuValFloat * vgtrust = new SetupMenuValFloat( PROGMEM"Virt G trust bank", "", 0, 100, 0.1, 0, false, &ahrs_virtg_bank_trust  );
+	vgtrust->setHelp( PROGMEM"Factor for trust in virtual gravity depending on angle of bank");
+	top->addEntry( vgtrust );
+
+	SetupMenuValFloat * gloadbd = new SetupMenuValFloat( PROGMEM"G Load bank Dynamic", "", 1, 2, 0.01, 0, false, &ahrs_gbank_dynamic  );
+	gloadbd->setHelp( PROGMEM"G load dynamic grow factor for angle of bank to be considered");
+	top->addEntry( gloadbd );
+
+	SetupMenuValFloat * gyrocal = new SetupMenuValFloat( PROGMEM"Gyro Calibration", "", -0.5, 1.5, 0.01, 0, false, &ahrs_gyro_cal  );
+	gyrocal->setHelp( PROGMEM"Gyro calibration factor to increase accuracy of gyro in %/100");
+	top->addEntry( gyrocal );
+
+}
 
 void SetupMenu::system_menu_create_hardware_ahrs( MenuEntry *top ){
 	SetupMenuSelect * ahrsid = new SetupMenuSelect( PROGMEM"AHRS ID", RST_NONE, 0, false );
@@ -1629,9 +1695,10 @@ void SetupMenu::system_menu_create_hardware_ahrs( MenuEntry *top ){
 	top->addEntry( ahrslc );
 	ahrslc->addCreator( system_menu_create_hardware_ahrs_lc );
 
-	SetupMenuValFloat * ahrsgf = new SetupMenuValFloat( PROGMEM"AHRS Gyro", "%", 0, 100, 0.1, 0, false, &ahrs_gyro_factor  );
-	ahrsgf->setHelp(PROGMEM"Gyro factor in artifical horizont bank and pitch (more instant movement), zero disables Gyro");
-	top->addEntry( ahrsgf );
+	SetupMenu * ahrspa = new SetupMenu( PROGMEM"AHRS Parameters" );
+	ahrspa->setHelp( PROGMEM"AHRS constants such as gyro trust and filtering", 275 );
+	top->addEntry( ahrspa );
+	ahrspa->addCreator( system_menu_create_hardware_ahrs_parameter );
 
 	SetupMenuSelect * rpyl = new SetupMenuSelect( PROGMEM"AHRS RPYL", RST_NONE , 0, true, &ahrs_rpyl_dataset );
 	top->addEntry( rpyl );
@@ -1655,13 +1722,6 @@ void SetupMenu::system_menu_create_hardware( MenuEntry *top ){
 	SetupMenu * rotary = new SetupMenu( PROGMEM"Rotary Setup" );
 	top->addEntry( rotary );
 	rotary->addCreator( system_menu_create_hardware_rotary );
-
-	SetupMenuSelect * s2fsw = new SetupMenuSelect( PROGMEM"S2F Switch", RST_NONE , 0, false, &s2f_switch_type );
-	top->addEntry( s2fsw );
-	s2fsw->setHelp( PROGMEM "Select S2F hardware switch type, what can be an normal switch or a push button without lock toggling S2F mode any time pressed");
-	s2fsw->addEntry( PROGMEM"Switch");
-	s2fsw->addEntry( PROGMEM"Push Button");
-	s2fsw->addEntry( PROGMEM"Switch Inverted");
 
 	SetupMenuSelect * gear = new SetupMenuSelect( PROGMEM"Gear Warn", RST_NONE , config_gear_warning, false, &gear_warning );
 	top->addEntry( gear );

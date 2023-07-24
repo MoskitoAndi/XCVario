@@ -31,6 +31,7 @@
 #include <cstdio>
 #include <cstring>
 #include "CenterAid.h"
+#include "Rotate.h"
 
 
 ////////////////////////////
@@ -50,6 +51,7 @@ public:
 	void forceRedraw() { dirty = true; }
 	void setColor(ucg_color_t c) { color = c;}
 	bool drawPolarIndicator( float a, bool dirty=false );
+	bool drawPolarIndicatorAndBow( float a, bool dirty=false );
 
 	// attributes
 private:
@@ -1236,6 +1238,7 @@ bool PolarIndicator::drawPolarIndicator( float a, bool dirty_p )
 			IpsDisplay::ucg->drawTriangle(n.x_0,n.y_0,n.x_1,n.y_1,n.x_2,n.y_2);
 		}
 	}
+	// ESP_LOGI(FNAME,"change=%d  prev=%d  now=%d", change, prev_needle_pos, val  );
 	prev = n;
 	prev_needle_pos = val;
 	prev_needle = a;
@@ -1248,6 +1251,7 @@ void IpsDisplay::drawBow( float a, int16_t &old_a_level, int16_t l1, ucg_color_t
 	int16_t level = (int16_t)(a*sincosScale); // dice up into discrete steps
 
 	if ( _menu ) return;
+	// ESP_LOGI(FNAME,"drawBbow af=%f level=%d old_level=%d", a, level, old_a_level );
 
 	if ( level == old_a_level ) {
 		return;
@@ -1279,6 +1283,7 @@ void IpsDisplay::drawBow( float a, int16_t &old_a_level, int16_t l1, ucg_color_t
 		else ucg->setColor(c.color[0], c.color[1], c.color[2]);
 	}
 	old_a_level = level;
+
 }
 
 // +/- range, radius to AMID [pixel], opt. small area refresh at [scale*10]
@@ -1489,13 +1494,16 @@ void IpsDisplay::drawWarning( const char *warn, bool push ){
 }
 
 
-void IpsDisplay::drawAvgVario( int16_t x, int16_t y, float val ){
+void IpsDisplay::drawAvgVario( int16_t x, int16_t y, float val, bool large ){
 	if( _menu )
 		return;
 	int ival = rint(val*10);  // integer value in steps of 10th
 	if( last_avg != ival){  // only print if there a change in rounded numeric string
 		char s[32];
-		ucg->setFont(ucg_font_fub35_hn, false );
+		if( large )
+			ucg->setFont(eglib_font_free_sansbold_66, false );
+		else
+			ucg->setFont(ucg_font_fub35_hn, false );
 		ucg->setFontPosCenter();
 		static const char* format[2] = {"%2.1f","%2.0f"};
 		sprintf(s, format[std::abs(ival)>100], float(ival/10.) );
@@ -1730,6 +1738,17 @@ static float old_gmax = 100;
 static float old_gmin = -100;
 static float old_ias_max = -1;
 
+void IpsDisplay::drawLoadDisplayTexts(){
+	ucg->setFont(ucg_font_fub11_hr, true);
+	ucg->setPrintPos(130,70);
+	ucg->setColor(  COLOR_HEADER_LIGHT  );
+	ucg->print( PROGMEM"MAX POS G" );
+	ucg->setPrintPos(130,205);
+	ucg->print( PROGMEM"MAX NEG G" );
+	ucg->setPrintPos(130,260);
+	ucg->printf( PROGMEM"MAX IAS %s", Units::AirspeedUnitStr() );
+}
+
 void IpsDisplay::initLoadDisplay(){
 	if( _menu )
 		return;
@@ -1739,13 +1758,7 @@ void IpsDisplay::initLoadDisplay(){
 	ucg->setFont(ucg_font_fub11_hr);
 	ucg->setPrintPos(20,20);
 	ucg->print( PROGMEM"G-Force" );
-	ucg->setPrintPos(130,70);
-	ucg->setColor(  COLOR_HEADER_LIGHT  );
-	ucg->print( PROGMEM"MAX POS G" );
-	ucg->setPrintPos(130,205);
-	ucg->print( PROGMEM"MAX NEG G" );
-	ucg->setPrintPos(130,260);
-	ucg->printf( PROGMEM"MAX IAS %s", Units::AirspeedUnitStr() );
+	drawLoadDisplayTexts();
 	int max_gscale = (int)( gload_pos_limit.get() )+1;
 	if( -gload_neg_limit.get() >= max_gscale )
 		max_gscale = (int)( -gload_neg_limit.get()  )+1;
@@ -1773,9 +1786,98 @@ void IpsDisplay::initLoadDisplay(){
 	ESP_LOGI(FNAME,"initLoadDisplay end");
 }
 
+static Point P1o;
+static Point P2o;
+static Point P3o;
+static Point P4o;
+static Point P5o;
+static Point P6o;
+
+static float oroll=0;
+static int heading_old = -1;
+
+void IpsDisplay::drawHorizon( float pitch, float roll, float yaw ){
+	// ESP_LOGI(FNAME,"drawHorizon P: %1.1f R: %1.1f Y: %1.1f", R2D(pitch), R2D(roll), R2D(yaw) );
+	if( _menu || !gflags.ahrsKeyValid )
+		return;
+	tick++;
+	if( !(screens_init & INIT_DISPLAY_HORIZON) ){
+		clear();
+		P1o.y = 0;
+		ucg->setColor( COLOR_WHITE );
+		ucg->drawTriangle( 1,   150, 20,  160, 1,   170 ); // Triangles l/r
+		ucg->drawTriangle( 240, 150, 220, 160, 240, 170 );
+		for( int i=-80; i<=80; i+=20 ){  // 10° scale
+			ucg->drawHLine( 1,160+i, 20 );
+			ucg->drawHLine( 220,160+i, 20 );
+		}
+		for( int i=-70; i<=70; i+=20 ){  // 5° scale
+			ucg->drawHLine( 10,160+i, 10 );
+			ucg->drawHLine( 220,160+i, 10 );
+		}
+		screens_init |= INIT_DISPLAY_HORIZON;
+	}
+	Point P1( -100, -60 );
+	Point P2(  340, -60 );
+	Point P3(  340, 160 );
+	Point P4( -100, 160 );
+	Point P5( -100, 380 );
+	Point P6(  340, 380 );
+	Point Center( 120, 160 );
+	Point P1r = P1.rotate( Center, roll );
+	Point P2r = P2.rotate( Center, roll );
+	Point P3r = P3.rotate( Center, roll );
+	Point P4r = P4.rotate( Center, roll );
+	Point P5r = P5.rotate( Center, roll );
+	Point P6r = P6.rotate( Center, roll );
+	int p = rint(R2D( pitch )*2);  // 1 deg := 1 pixel
+	P1r.moveVertical(p);
+	P2r.moveVertical(p);
+	P3r.moveVertical(p);
+	P4r.moveVertical(p);
+	P5r.moveVertical(p);
+	P6r.moveVertical(p);
+	int heading = 0;
+	if( compass_enable.get() != CS_DISABLE ){
+
+	}
+	// ESP_LOGI(FNAME,"P1:%d/%d P2:%d/%d P3:%d/%d P4:%d/%d roll:%f d:%d ", P1r.x, P1r.y+p, P2r.x, P2r.y+p, P3r.x, P3r.y+p, P4r.x , P4r.y+p, R2D(roll), p  );
+	if( P1r.y != P1o.y || P1r.x != P1o.x ){
+		xSemaphoreTake(spiMutex,portMAX_DELAY );
+		ucg->setClipRange( 20, 60, 200, 200 );
+		ucg->setColor( COLOR_LBLUE );
+		ucg->drawTetragon( P1r.x, P1r.y, P2r.x, P2r.y, P3r.x, P3r.y, P4r.x , P4r.y );
+		ucg->setColor( COLOR_BROWN );
+		ucg->drawTetragon( P4r.x, P4r.y, P3r.x, P3r.y, P6r.x, P6r.y, P5r.x , P5r.y );
+		// Flarm::drawAirplane( 120, 160, true, false );  would be nice hence flickering
+		P1o = P1r;
+		P2o = P2r;
+		P3o = P3r;
+		P4o = P4r;
+		P5o = P5r;
+		P6o = P6r;
+		oroll = roll;
+		ucg->undoClipRange();
+		xSemaphoreGive(spiMutex);
+	}
+	if( compass_enable.get() != CS_DISABLE ){
+		heading = static_cast<int>(rintf(mag_hdt.get()));
+		ucg->setFont(ucg_font_fub20_hr, true);
+		ucg->setPrintPos(70,310);
+		if( heading >= 360 )
+			heading -= 360;
+		//			ESP_LOGI(FNAME,"compass enable, heading: %d", heading );
+		if( heading > 0  && heading != heading_old){
+			ucg->setColor( COLOR_WHITE );
+			ucg->printf("   %d°   ", heading );
+			heading_old = heading;
+		}
+	}
+}
+
 
 void IpsDisplay::drawLoadDisplay( float loadFactor ){
-	// ESP_LOGI(FNAME,"drawLoadDisplay %1.1f", loadFactor );
+	// ESP_LOGI(FNAME,"drawLoadDisplay %1.1f tick: %d", loadFactor, tick );
 	if( _menu )
 		return;
 	tick++;
@@ -1793,39 +1895,43 @@ void IpsDisplay::drawLoadDisplay( float loadFactor ){
 
 	// G load digital
 	if( (int)(loadFactor*30) != _ate && !(tick%3) ) {
-		drawAvgVario( AMIDX+38, AMIDY, loadFactor );
+		drawAvgVario( AMIDX+38, AMIDY, loadFactor, true );
 		_ate = (int)(loadFactor*30);
 	}
 	// Min/Max values
-	if( old_gmax != gload_pos_max.get() ){
+	if( old_gmax != gload_pos_max.get() || !(tick%10)) {
 		if( gload_pos_max.get() < gload_pos_limit.get() )
 			ucg->setColor(  COLOR_WHITE  );
 		else
 			ucg->setColor(  COLOR_RED  );
 		ucg->setFont(ucg_font_fub20_hr, true);
 		ucg->setPrintPos(120,105);
-		ucg->printf("%+1.2f   ", gload_pos_max.get() );
+		ucg->printf("  %+1.2f   ", gload_pos_max.get() );
 		old_gmax = gload_pos_max.get();
 	}
-	if( old_gmin != gload_neg_max.get() ){
+	if( old_gmin != gload_neg_max.get() || !(tick%10)){
 		if( gload_neg_max.get() > gload_neg_limit.get() )
 			ucg->setColor(  COLOR_WHITE  );
 		else
 			ucg->setColor(  COLOR_RED  );
 		ucg->setFont(ucg_font_fub20_hr, true);
 		ucg->setPrintPos(125,235);
-		ucg->printf("%+1.2f   ", gload_neg_max.get() );
+		ucg->printf("  %+1.2f   ", gload_neg_max.get() );
 		old_gmin = gload_neg_max.get();
 	}
-	if( old_ias_max != airspeed_max.get() ){
+	if( old_ias_max != airspeed_max.get() || !(tick%10)){
 		if( airspeed_max.get() < v_max.get() )
 			ucg->setColor(  COLOR_WHITE  );
 		else
 			ucg->setColor(  COLOR_RED  );
 		ucg->setFont(ucg_font_fub20_hr, true);
 		ucg->setPrintPos(125,295);
-		ucg->printf("%3d   ", Units::AirspeedRounded( airspeed_max.get() ) );
+		ucg->printf("  %3d   ", Units::AirspeedRounded( airspeed_max.get() ) );
 		old_ias_max = airspeed_max.get();
+	}
+
+	if( !(tick%10)){
+		drawLoadDisplayTexts();
 	}
 	xSemaphoreGive(spiMutex);
 }
@@ -1993,6 +2099,17 @@ void IpsDisplay::drawNetto( int16_t x, int16_t y, bool netto ) {
 	ucg->print(s);
 }
 
+bool PolarIndicator::drawPolarIndicatorAndBow(float a, bool dirty){
+	if( drawPolarIndicator(a, false) ) {
+		// Draw colored bow
+		float bar_val = (a>0.) ? a : 0.;
+		// draw green/red vario bar
+		IpsDisplay::drawBow(bar_val, old_vario_bar_val, 134, bowcolor[BC_GREEN] );
+		return true;
+	}
+	return false;
+}
+
 void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, float polar_sink_ms, float altitude_m,
 		float temp, float volt, float s2fd_ms, float s2f_ms, float acl_ms, bool s2fmode, bool standard_setting, float wksensor, bool ulmode ){
 	// ESP_LOGI(FNAME,"drawRetroDisplay polar_sink: %f", polar_sink_ms );
@@ -2095,12 +2212,7 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 	bool needle_prio = (drawing_prio.get() == DP_NEEDLE);
 	bool bg_prio = (drawing_prio.get() == DP_BACKGROUND);
 	if( !(tick%2) && bg_prio ){  // draw needle first when background has prio
-		if( indicator->drawPolarIndicator(needle_pos, false) ) {
-			// Draw colored bow
-			float bar_val = (needle_pos>0.) ? needle_pos : 0.;
-			// draw green/red vario bar
-			drawBow(bar_val, old_vario_bar_val, 134, bowcolor[BC_GREEN] );
-		}
+		indicator->drawPolarIndicatorAndBow(needle_pos, false);
 	}
 	// Airspeed (NEEDLE overlap)
 	if( !(tick%6) ) {
@@ -2108,7 +2220,7 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			drawSpeed( airspeed_kmh, INNER_RIGHT_ALIGN, 75, speed_dirty );
 		}else {
 			if( drawSpeed( airspeed_kmh, INNER_RIGHT_ALIGN, 75, (speed_dirty && !(tick%10)) ) ){
-				indicator->drawPolarIndicator(needle_pos, true);
+				indicator->drawPolarIndicatorAndBow(needle_pos, false);
 			}
 		}
 	}
@@ -2121,7 +2233,7 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			drawAltitude( altitude, INNER_RIGHT_ALIGN, 270, alt_dirty );
 		}else{  // needle prio
 			if( drawAltitude( altitude, INNER_RIGHT_ALIGN, 270, (alt_dirty && !(tick%10)) ) ){
-				indicator->drawPolarIndicator(needle_pos, true);
+				indicator->drawPolarIndicatorAndBow(needle_pos, true);
 			}
 		}
 	}
@@ -2131,7 +2243,7 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 			drawCompass(INNER_RIGHT_ALIGN, 105, wind_dirty, compass_dirty );
 		else{
 			if( drawCompass(INNER_RIGHT_ALIGN, 105, wind_dirty && !(tick%10), compass_dirty && !(tick%10) ) ){
-				indicator->drawPolarIndicator(needle_pos, true);
+				indicator->drawPolarIndicatorAndBow(needle_pos, true);
 			}
 		}
 	}
@@ -2142,13 +2254,8 @@ void IpsDisplay::drawRetroDisplay( int airspeed_kmh, float te_ms, float ate_ms, 
 	}
 
 	// Vario Needle in Front mode drawn as last
-	if( !(tick%2) && needle_prio  ){
-		if( indicator->drawPolarIndicator(needle_pos, false) ) {
-			// Draw colored bow
-			float bar_val = (needle_pos>0.) ? needle_pos : 0.;
-			// draw green/red vario bar
-			drawBow(bar_val, old_vario_bar_val, 134, bowcolor[BC_GREEN] );
-		}
+	if( !(tick%2) && needle_prio ){
+		indicator->drawPolarIndicatorAndBow(needle_pos, false);
 	}
 	// ESP_LOGI(FNAME,"polar-sink:%f Old:%f int:%d old:%d", polar_sink, old_polar_sink, int( polar_sink*100.), int( old_polar_sink*100. ) );
 	if( ps_display.get() && !(tick%3) ){
