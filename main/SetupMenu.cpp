@@ -1236,8 +1236,7 @@ void SetupMenu::options_menu_create_compasswind( MenuEntry *top ){
 	windcal->addEntry( PROGMEM"Straight");
 	windcal->addEntry( PROGMEM"Circling");
 	windcal->addEntry( PROGMEM"Both");
-	windcal->addEntry( PROGMEM"Anemoi");
-	windcal->setHelp(PROGMEM"Enable Wind calculation for straight flight (needs compass), circling, both or external source");
+	windcal->setHelp(PROGMEM"Enable Wind calculation for straight flight (needs compass), circling or both and display wind in reto display style");
 	top->addEntry( windcal );
 
 	// Display option
@@ -1633,12 +1632,12 @@ void SetupMenu::system_menu_create_hardware_ahrs_lc( MenuEntry *top ){
 void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
 	SetupMenuValFloat * ahrsgf = new SetupMenuValFloat( PROGMEM"Gyro Max Trust", "x", 0, 100, 1, 0, false, &ahrs_gyro_factor  );
 	ahrsgf->setPrecision( 0 );
-	ahrsgf->setHelp(PROGMEM"Gyro trust factor in artifical horizont bank and pitch");
+	ahrsgf->setHelp(PROGMEM"Maximum Gyro trust factor in artifical horizont");
 	top->addEntry( ahrsgf );
 
 	SetupMenuValFloat * ahrsgfm = new SetupMenuValFloat( PROGMEM"Gyro Min Trust", "x", 0, 100, 1, 0, false, &ahrs_min_gyro_factor  );
 	ahrsgfm->setPrecision( 0 );
-	ahrsgfm->setHelp(PROGMEM"Minimum Gyro trust factor in artifical horizont bank and pitch");
+	ahrsgfm->setHelp(PROGMEM"Minimum Gyro trust factor in artifical horizont");
 	top->addEntry( ahrsgfm );
 
 	SetupMenuValFloat * ahrsdgf = new SetupMenuValFloat( PROGMEM"Gyro Dyanmics", "", 0.5, 10, 0.1, 0, false, &ahrs_dynamic_factor  );
@@ -1648,24 +1647,6 @@ void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
 	SetupMenuValFloat * gyrog = new SetupMenuValFloat( PROGMEM"Gyro Gating", "°", 0, 10, 0.1, 0, false, &gyro_gating  );
 	gyrog->setHelp( PROGMEM"Minimum accepted gyro rate in degree per second");
 	top->addEntry( gyrog );
-
-	SetupMenuValFloat * virtglp = new SetupMenuValFloat( PROGMEM"Virtual G Lowpass", "", 0, 1, 0.005, 0, false, &ahrs_virt_g_lowpass  );
-	virtglp->setPrecision( 3 );
-	virtglp->setHelp( PROGMEM"Lowpass factor for virtual gravity from airspeed and omega or centripedal force compensation");
-	top->addEntry( virtglp );
-
-	SetupMenuValFloat * gflp = new SetupMenuValFloat( PROGMEM"G-Force Lowpass", "", 0, 1, 0.005, 0, false, &ahrs_gforce_lp  );
-	gflp->setHelp( PROGMEM"Lowpass factor to filter g force for loadfactor dependent bank calculation");
-	gflp->setPrecision( 3 );
-	top->addEntry( gflp );
-
-	SetupMenuValFloat * vgtrust = new SetupMenuValFloat( PROGMEM"Virt G trust bank", "", 0, 100, 0.1, 0, false, &ahrs_virtg_bank_trust  );
-	vgtrust->setHelp( PROGMEM"Factor for trust in virtual gravity depending on angle of bank");
-	top->addEntry( vgtrust );
-
-	SetupMenuValFloat * gloadbd = new SetupMenuValFloat( PROGMEM"G Load bank Dynamic", "", 1, 2, 0.01, 0, false, &ahrs_gbank_dynamic  );
-	gloadbd->setHelp( PROGMEM"G load dynamic grow factor for angle of bank to be considered");
-	top->addEntry( gloadbd );
 
 	SetupMenuValFloat * gyrocal = new SetupMenuValFloat( PROGMEM"Gyro Calibration", "", -0.5, 1.5, 0.01, 0, false, &ahrs_gyro_cal  );
 	gyrocal->setHelp( PROGMEM"Gyro calibration factor to increase accuracy of gyro in %/100");
@@ -1700,6 +1681,12 @@ void SetupMenu::system_menu_create_hardware_ahrs( MenuEntry *top ){
 	ahrspa->setHelp( PROGMEM"AHRS constants such as gyro trust and filtering", 275 );
 	top->addEntry( ahrspa );
 	ahrspa->addCreator( system_menu_create_hardware_ahrs_parameter );
+
+	SetupMenuSelect * ahrsdef = new SetupMenuSelect( "AHRS Defaults", RST_NONE, 0, true, &ahrs_defaults );
+	top->addEntry( ahrsdef );
+	ahrsdef->setHelp( PROGMEM "Set optimum default values for all AHRS Parameters as determined to the best practice");
+	ahrsdef->addEntry( "Cancel");
+	ahrsdef->addEntry( "Start");
 
 	SetupMenuSelect * rpyl = new SetupMenuSelect( PROGMEM"AHRS RPYL", RST_NONE , 0, true, &ahrs_rpyl_dataset );
 	top->addEntry( rpyl );
@@ -1813,10 +1800,10 @@ void SetupMenu::system_menu_create_interfaceS1_routing( MenuEntry *top ){
 	s1outwl->addEntry( PROGMEM"Enable");
 	top->addEntry( s1outwl );
 
-	SetupMenuSelect * s1outs2 = new SetupMenuSelect( PROGMEM"S2-RS232", RST_NONE, update_routing, true, &rt_s1_s2 );
-	s1outs2->addEntry( PROGMEM"Disable");
-	s1outs2->addEntry( PROGMEM"Enable");
-	top->addEntry( s1outs2 );
+	SetupMenuSelect * s1outs1 = new SetupMenuSelect( PROGMEM"S2-RS232", RST_NONE, update_routing, true, &rt_s1_s2 );
+	s1outs1->addEntry( PROGMEM"Disable");
+	s1outs1->addEntry( PROGMEM"Enable");
+	top->addEntry( s1outs1 );
 
 	SetupMenuSelect * s1outcan = new SetupMenuSelect( PROGMEM"CAN-bus", RST_NONE, update_routing, true, &rt_s1_can );
 	s1outcan->addEntry( PROGMEM"Disable");
@@ -1880,10 +1867,10 @@ void SetupMenu::system_menu_create_interfaceS2_routing( MenuEntry *top ){
 	s2outwl->addEntry( PROGMEM"Disable");
 	s2outwl->addEntry( PROGMEM"Enable");
 	top->addEntry( s2outwl );
-	SetupMenuSelect * s2outs1 = new SetupMenuSelect( PROGMEM"S1-RS232", RST_NONE, update_routing, true, &rt_s1_s2 );
-	s2outs1->addEntry( PROGMEM"Disable");
-	s2outs1->addEntry( PROGMEM"Enable");
-	top->addEntry( s2outs1 );
+	SetupMenuSelect * s2outs2 = new SetupMenuSelect( PROGMEM"S1-RS232", RST_NONE, update_routing, true, &rt_s1_s2 );
+	s2outs2->addEntry( PROGMEM"Disable");
+	s2outs2->addEntry( PROGMEM"Enable");
+	top->addEntry( s2outs2 );
 	SetupMenuSelect * s2outcan = new SetupMenuSelect( PROGMEM"CAN-bus", RST_NONE, update_routing, true, &rt_s2_can );
 	s2outcan->addEntry( PROGMEM"Disable");
 	s2outcan->addEntry( PROGMEM"Enable");

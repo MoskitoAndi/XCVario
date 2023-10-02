@@ -126,18 +126,12 @@ void chg_mpu_target(){
 	mpu_target_temp = mpu_temperature.get();
 };
 
-// temp solution to disable anemoi
-extern void enable_anemoi();
-extern void disable_anemoi();
-
-static void set_wind() {
-	if ( wind_enable.get() == WA_EXT_ANEMOI ) {
-		enable_anemoi();
-	}
-	else {
-		disable_anemoi();
-	}
-
+void set_ahrs_defaults(){
+	ahrs_gyro_factor.setDefault();
+	ahrs_min_gyro_factor.setDefault();
+	ahrs_dynamic_factor.setDefault();
+	gyro_gating.setDefault();
+	ahrs_gyro_cal.setDefault();
 }
 
 SetupNG<float>          MC(  "MacCready", 0.5, true, SYNC_BIDIR, PERSISTENT, change_mc, UNIT_VARIO );
@@ -177,11 +171,6 @@ SetupNG<float>  		swind_speed( "SWDS", 0.0, true, SYNC_FROM_MASTER, VOLATILE, re
 SetupNG<float>  		swind_sideslip_lim( "SWSL", 2.0, true, SYNC_FROM_MASTER );
 SetupNG<float>  		cwind_dir( "CWDD", 0.0, true, SYNC_FROM_MASTER, VOLATILE, resetCWindAge );
 SetupNG<float>  		cwind_speed( "CWDS", 0.0, true, SYNC_FROM_MASTER, VOLATILE, resetCWindAge );
-SetupNG<float>  		extwind_sptc_dir( "EWDD", 0.0, false, SYNC_BIDIR, VOLATILE ); // synoptic and
-SetupNG<float>  		extwind_sptc_speed( "EWDS", 0.0, false, SYNC_BIDIR, VOLATILE );
-SetupNG<float>  		extwind_inst_dir( "EIWDD", 0.0, false, SYNC_BIDIR, VOLATILE ); // instant external wind
-SetupNG<float>  		extwind_inst_speed( "EIWDS", 0.0, false, SYNC_BIDIR, VOLATILE );
-SetupNG<int>  			extwind_status( "EWST", -1, false, SYNC_BIDIR, VOLATILE );
 SetupNG<float>  		mag_hdm( "HDM", 0.0, true, SYNC_FROM_MASTER, VOLATILE );
 SetupNG<float>  		mag_hdt( "HDT", 0.0, true, SYNC_FROM_MASTER, VOLATILE );
 SetupNG<float>  		average_climb( "AVCL", 0.0, true, SYNC_FROM_MASTER, VOLATILE );
@@ -202,7 +191,7 @@ SetupNG<int>  			s2f_switch_mode( "AUDIO_MODE" ,  3 );
 SetupNG<int>  			chopping_mode( "CHOPPING_MODE",  VARIO_CHOP );
 SetupNG<int>  			chopping_style( "CHOP_STYLE",  AUDIO_CHOP_SOFT );
 SetupNG<int>  			amplifier_shutdown( "AMP_DIS", 0 );
-SetupNG<int>            audio_equalizer( "AUD_EQ" , AUDIO_EQ_LS4 );
+SetupNG<int>            audio_equalizer( "AUD_EQ", AUDIO_EQ_DISABLE, false );
 
 SetupNG<int>  			wireless_type( "BT_ENABLE" ,  WL_BLUETOOTH );
 SetupNG<float>  		wifi_max_power( "WIFI_MP" ,  50);
@@ -226,7 +215,7 @@ SetupNG<float>  		core_climb_min( "CORE_CLIMB_MIN" , 0.5, true, SYNC_FROM_MASTER
 SetupNG<float>  		core_climb_history( "CORE_CLIMB_HIST" , 45, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		mean_climb_major_change( "MEAN_CLMC", 0.5, true, SYNC_FROM_MASTER );
 SetupNG<float>  		elevation( "ELEVATION", -1, true, SYNC_BIDIR, PERSISTENT, 0, UNIT_ALT );
-SetupNG<float>  		default_volume( "DEFAULT_VOL", 10.0 );
+SetupNG<float>  		default_volume( "DEFAULT_VOL", 25.0 );
 SetupNG<float>  		max_volume( "MAXI_VOL", 60.0 );
 SetupNG<float>  		frequency_response( "FREQ_RES", 30.0 );
 SetupNG<float>  		s2f_deadband( "DEADBAND_S2F", 10.0, true, SYNC_BIDIR, PERSISTENT, 0, UNIT_SPEED );
@@ -289,13 +278,11 @@ SetupNG<int>		    attitude_indicator("AHRS", 1 );
 SetupNG<int>		    ahrs_rpyl_dataset("RPYL", 0 );
 SetupNG<int>		    ahrs_autozero("AHRSAZ", 0 );
 SetupNG<float>		    ahrs_gyro_factor("AHRSMGYF", 100 );
+SetupNG<float>		    ahrs_min_gyro_factor("AHRSLGYF", 20 );
 SetupNG<float>		    ahrs_dynamic_factor("AHRSGDYN", 5 );
-SetupNG<float>		    ahrs_min_gyro_factor("AHRSLGYF", 40 );
-SetupNG<float>  		ahrs_gforce_lp("AHRSGFLP", 0.2 );
-SetupNG<float>  		ahrs_virt_g_lowpass("AHRSVGL", 0.2 );
-SetupNG<float>  		ahrs_virtg_bank_trust("AHRSGBT", 20 );
+SetupNG<float>       	gyro_gating("GYRO_GAT", 1.0 );
 SetupNG<float>  		ahrs_gyro_cal("AHRSGCAL", 1.07 );
-SetupNG<float>  		ahrs_gbank_dynamic("AHRSGBD", 1.2 );
+SetupNG<int>  			ahrs_defaults( "AHRSDEF", 0, RST_NONE, SYNC_NONE, VOLATILE, set_ahrs_defaults );
 SetupNG<int>		    display_style("DISPLAY_STYLE", 1 );
 SetupNG<int>		    s2f_switch_type("S2FHWSW", S2F_HW_SWITCH );
 SetupNG<int>		    hardwareRevision("HWREV", HW_UNKNOWN );
@@ -344,7 +331,7 @@ SetupNG<float>          compass_i2c_cl("CP_I2C_CL", 100 );
 SetupNG<float>          wind_as_filter( "WINDASF", 0.02 );
 SetupNG<float>          wind_gps_lowpass( "WINDGPSLP", 1.00 );
 SetupNG<float>          wind_dev_filter( "WINDDEVF", 0.010 );
-SetupNG<int> 			wind_enable( "WIND_ENA", WA_OFF, RST_NONE, SYNC_NONE, VOLATILE, set_wind );
+SetupNG<int> 			wind_enable( "WIND_ENA", WA_OFF );
 SetupNG<int> 			wind_logging( "WIND_LOG", 0 );
 SetupNG<float> 			wind_as_calibration("WIND_AS_CAL", 1.0 );
 SetupNG<float> 			wind_filter_lowpass("SWINDAVER", 60 );
@@ -408,7 +395,7 @@ SetupNG<t_wireless_id>  custom_wireless_id("WLID", t_wireless_id("") );
 SetupNG<int> 			drawing_prio("DRAWP", DP_NEEDLE );
 
 mpud::raw_axes_t zero_bias;
-SetupNG<float>       	    gyro_gating("GYRO_GAT", 2.5 );
+
 SetupNG<mpud::raw_axes_t>	gyro_bias("GYRO_BIAS", zero_bias );
 SetupNG<mpud::raw_axes_t>	accl_bias("ACCL_BIAS", zero_bias );
 SetupNG<float>              mpu_temperature("MPUTEMP", 45.0, true, SYNC_FROM_MASTER, PERSISTENT, chg_mpu_target );    // default for AHRS chip temperature (XCV 2023)

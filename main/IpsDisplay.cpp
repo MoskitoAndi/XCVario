@@ -1843,6 +1843,7 @@ void IpsDisplay::drawHorizon( float pitch, float roll, float yaw ){
 	}
 	// ESP_LOGI(FNAME,"P1:%d/%d P2:%d/%d P3:%d/%d P4:%d/%d roll:%f d:%d ", P1r.x, P1r.y+p, P2r.x, P2r.y+p, P3r.x, P3r.y+p, P4r.x , P4r.y+p, R2D(roll), p  );
 	if( P1r.y != P1o.y || P1r.x != P1o.x ){
+		ESP_LOGI(FNAME,"drawHorizon P: %1.1f R: %1.1f Y: %1.1f", R2D(pitch), R2D(roll), R2D(yaw) );
 		xSemaphoreTake(spiMutex,portMAX_DELAY );
 		ucg->setClipRange( 20, 60, 200, 200 );
 		ucg->setColor( COLOR_LBLUE );
@@ -1995,14 +1996,7 @@ bool IpsDisplay::drawCompass(int16_t x, int16_t y, bool _dirty, bool compass_dir
 				wind_ok = true;
 			}
 			// ESP_LOGI(FNAME, "SWIND dir=%d, SSPEED=%f ageC=%d ageS=%d okc:=%d oks=%d ok:=%d", wds, ws, ageCircling, ageStraight, okc, oks, ok  );
-		}
-		else if( wind_enable.get() == WA_EXT_ANEMOI ) {
-			wind = extwind_inst_speed.get();
-			winddir = extwind_inst_dir.get();
-			type = '~';
-			wind_ok = true;
-		}
-		ucg->setPrintPos(85,104);
+		}ucg->setPrintPos(85,104);
 		// ESP_LOGI(FNAME, "WIND dir %d, speed %f, ok=%d", winddir, wind, ok );
 		// Windspeed and Direction digital
 		int windspeed = (int)( Units::Airspeed(wind)+0.5 );

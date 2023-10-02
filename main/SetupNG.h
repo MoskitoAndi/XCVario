@@ -66,7 +66,7 @@ typedef enum e_vario_mode { VARIO_BRUTTO, VARIO_NETTO, CRUISE_NETTO } e_vario_mo
 typedef enum e_airspeed_sensor_type { PS_ABPMRR, PS_TE4525, PS_MP3V5004, PS_NONE } e_airspeed_sensor_type_t;
 typedef enum e_netto_mode { NETTO_NORMAL, NETTO_RELATIVE } e_netto_mode_t;
 typedef enum e_gload_mode { GLOAD_OFF=0, GLOAD_DYNAMIC=1, GLOAD_ALWAYS_ON=2 } e_gload_mode_t;
-typedef enum e_windanalyser_mode { WA_OFF=0, WA_STRAIGHT=1, WA_CIRCLING=2, WA_BOTH=3, WA_EXT_ANEMOI=4 } e_windanalyser_mode_t;
+typedef enum e_windanalyser_mode { WA_OFF=0, WA_STRAIGHT=1, WA_CIRCLING=2, WA_BOTH=3 } e_windanalyser_mode_t;
 typedef enum e_battery_display { BAT_PERCENTAGE, BAT_VOLTAGE, BAT_VOLTAGE_BIG } e_battery_display_t;
 typedef enum e_wind_display { WD_NONE, WD_DIGITS, WD_ARROW, WD_BOTH, WD_COMPASS } e_wind_display_t;
 typedef enum e_wind_reference { WR_NORTH, WR_HEADING, WR_GPS_COURSE } e_wind_reference_t;
@@ -155,6 +155,10 @@ public:
 
 	virtual bool dirty() {
 		return flags._dirty;
+	}
+
+	virtual void setDefault(){
+			set( _default );
 	}
 
 	virtual void setValueStr( const char * val ){
@@ -360,6 +364,7 @@ public:
 		return true;
 	}
 
+
 	virtual bool erase() {
 		if( flags._volatile != PERSISTENT ){
 			return true;
@@ -476,11 +481,6 @@ extern SetupNG<float>  		swind_speed;
 extern SetupNG<float>  		swind_sideslip_lim;
 extern SetupNG<float>  		cwind_dir;   // cirling wind direction
 extern SetupNG<float>  		cwind_speed;
-extern SetupNG<float>  		extwind_sptc_dir; // synoptic and
-extern SetupNG<float>  		extwind_sptc_speed;
-extern SetupNG<float>  		extwind_inst_dir; // instant external wind
-extern SetupNG<float>  		extwind_inst_speed;
-extern SetupNG<int>  		extwind_status;
 extern SetupNG<float>  		mag_hdm;
 extern SetupNG<float>  		mag_hdt;
 extern SetupNG<float>  		average_climb;
@@ -545,13 +545,11 @@ extern SetupNG<int>		    attitude_indicator;
 extern SetupNG<int>		    ahrs_rpyl_dataset;
 extern SetupNG<int>		    ahrs_autozero;
 extern SetupNG<float>		ahrs_gyro_factor;
-extern SetupNG<float>		ahrs_dynamic_factor;
 extern SetupNG<float>		ahrs_min_gyro_factor;
-extern SetupNG<float>  		ahrs_gforce_lp;
-extern SetupNG<float>  		ahrs_virt_g_lowpass;
-extern SetupNG<float>  		ahrs_virtg_bank_trust;
+extern SetupNG<float>		ahrs_dynamic_factor;
+extern SetupNG<float>       gyro_gating;
+extern SetupNG<int>  		ahrs_defaults;
 extern SetupNG<float>  		ahrs_gyro_cal;
-extern SetupNG<float>  		ahrs_gbank_dynamic;
 extern SetupNG<int>		    display_style;
 extern SetupNG<int>		    display_variant;
 extern SetupNG<int>		    s2f_switch_type;
@@ -668,8 +666,6 @@ extern SetupNG<t_bitfield_compass> 	calibration_bits;
 extern SetupNG<int> 		gear_warning;
 extern SetupNG<t_wireless_id>  custom_wireless_id;
 extern SetupNG<int> 		drawing_prio;
-extern SetupNG<float>       gyro_gating;
-
 extern uint8_t g_col_background;
 extern uint8_t g_col_highlight;
 
