@@ -89,20 +89,10 @@ void resetCWindAge() {
 		CircleWind::resetAge();
 }
 
-int last_volume=0;
+float last_volume=0;   // is this used?
 
 void change_volume() {
-	int delta = (int)audio_volume.get() - last_volume;
-	if( delta ){
-		if( delta > 0 ){
-			Audio::incVolume(delta);
-		}
-		else if( delta < 0 ){
-			Audio::decVolume(-delta);
-		}
-		last_volume += delta;
-		// ESP_LOGI(FNAME,"change_volume, delta=%d last_vol: %d", delta, last_volume );
-	}
+	Audio::setVolume( audio_volume.get() );
 }
 
 void flap_act() {
@@ -210,7 +200,7 @@ SetupNG<float>  		bat_low_volt( "BAT_LOW_VOLT" , 11.5, true, SYNC_FROM_MASTER );
 SetupNG<float>  		bat_red_volt( "BAT_RED_VOLT", 11.75, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		bat_yellow_volt( "BAT_YELLOW_VOLT" , 12.0, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		bat_full_volt( "BAT_FULL_VOLT", 12.8, true, SYNC_FROM_MASTER  );
-SetupNG<float>  		core_climb_period( "CORE_CLIMB_P" , 60, true, SYNC_FROM_MASTER, PERSISTENT, 0, UNIT_VARIO  );
+SetupNG<float>  		core_climb_period( "CORE_CLIMB_P" , 60, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		core_climb_min( "CORE_CLIMB_MIN" , 0.5, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		core_climb_history( "CORE_CLIMB_HIST" , 45, true, SYNC_FROM_MASTER  );
 SetupNG<float>  		mean_climb_major_change( "MEAN_CLMC", 0.5, true, SYNC_FROM_MASTER );
@@ -224,6 +214,7 @@ SetupNG<float>  		s2f_delay( "S2F_DELAY", 5.0, true, SYNC_BIDIR );
 SetupNG<float>  		factory_volt_adjust("FACT_VOLT_ADJ" , 0.00815, RST_NONE );
 
 SetupNG<int>  			display_type( "DISPLAY_TYPE",  UNIVERSAL );
+SetupNG<int>  			display_test( "DISPLAY_TEST", 0, RST_NONE, SYNC_NONE, VOLATILE );
 SetupNG<int>  			display_orientation("DISPLAY_ORIENT" , DISPLAY_NORMAL );
 SetupNG<int>  			flap_enable( "FLAP_ENABLE", 0, true, SYNC_FROM_MASTER, PERSISTENT, flap_act);
 SetupNG<float>  		flap_minus_3( "FLAP_MINUS_3", 200,  true, SYNC_FROM_MASTER, PERSISTENT, flap_act, UNIT_SPEED );

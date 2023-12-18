@@ -1345,13 +1345,20 @@ void IpsDisplay::drawScale( int16_t max_pos, int16_t max_neg, int16_t pos, int16
 				}
 				draw_label = a!=0 && (draw_label || max_pos<5 || a==mid_lpos);
 			}
-			// ESP_LOGI(FNAME, "lines a %d %d %d", a, end, draw_label);
+			// ESP_LOGI(FNAME, "lines a:%d end:%d label: %d  width: %d", a, end, draw_label, width );
 
 			float val = (*_gauge)((float)a/10.);
-			drawOneScaleLine( val, pos, end, width, COLOR_WHITE );
+			if( width < 3 )
+				drawOneScaleLine( val, pos, end, width, DARK_GREY );  // darker color for small scale
+			else
+				drawOneScaleLine( val, pos, end, width, COLOR_WHITE );
+
 			if ( draw_label ) { drawOneLabel(val, a/10, pos+12, offset); }
 			if ( (-a/10) >= max_neg && at < max_neg ) {
-				drawOneScaleLine( -val, pos, end, width, COLOR_WHITE );
+				if( width < 3 )
+					drawOneScaleLine( -val, pos, end, width, DARK_GREY );
+				else
+					drawOneScaleLine( -val, pos, end, width, COLOR_WHITE );
 				if ( draw_label ) { drawOneLabel(-val, a/10, pos+12, -offset); }
 			}
 			draw_label = false;
@@ -1679,9 +1686,9 @@ bool IpsDisplay::drawAltitude( float altitude, int16_t x, int16_t y, bool dirty,
 
 // Accepts speed in kmh IAS/TAS, translates into configured unit
 // right-aligned to value in 25 font size, no unit
-void IpsDisplay::drawSmallSpeed(float v_kmh, int16_t x, int16_t y)
+void IpsDisplay::drawSmallSpeed(float v, int16_t x, int16_t y)
 {
-	int airspeed = Units::AirspeedRounded(v_kmh);
+	int airspeed = (int)roundf(v);
 	ucg->setColor( COLOR_WHITE );
 	ucg->setFont(ucg_font_fub14_hr, true);
 	char s[32];
@@ -2401,7 +2408,7 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 	// WK-Indicator
 	if( FLAP && !(tick%7) )
 	{
-		float wkspeed = Units::ActualWingloadCorrection(airspeed_kmh);
+		float wkspeed = Units::ActualWingloadCorrection(airspeed_kmh); // no units conversion in here, tbd: move sub to other place
 		int wki;
 		float wkopt=FLAP->getOptimum( wkspeed, wki );
 		int wk = (int)((wki - wkopt + 0.5)*10);
@@ -2592,7 +2599,7 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		}
 		ucg->undoClipRange();
 		// AS cleartext
-		drawSmallSpeed(airspeed_kmh, FIELD_START+35, YS2F-fh+3);
+		drawSmallSpeed(airspeed, FIELD_START+35, YS2F-fh+3);
 		as_prev = airspeed;
 	}
 	// S2F command trend triangle
@@ -2600,7 +2607,7 @@ void IpsDisplay::drawAirlinerDisplay( int airspeed_kmh, float te_ms, float ate_m
 		xSemaphoreGive(spiMutex);
 		return;
 	}
-	if( ((int)s2fd != s2fdalt && !((tick+1)%2)) || !(tick%21) ) {
+	if( ((int)s2fd != s2fdalt) || (s2falt != (int)(s2f+0.5)) || !(tick%21) ) {
 		// Arrow pointing there
 		if( s2fmode ){
 			// erase old

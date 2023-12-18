@@ -491,6 +491,7 @@ extern SetupNG<float>  		te_vario;
 
 
 extern SetupNG<int>  		display_type;
+extern SetupNG<int>  		display_test;
 extern SetupNG<int>  		display_orientation;
 extern SetupNG<int>  		flap_enable;
 extern SetupNG<float>  		flap_minus_3;
@@ -669,7 +670,7 @@ extern SetupNG<int> 		drawing_prio;
 extern uint8_t g_col_background;
 extern uint8_t g_col_highlight;
 
-extern int last_volume;
+extern float last_volume;   // is this used?
 
 void change_ballast();
 void change_mc();
