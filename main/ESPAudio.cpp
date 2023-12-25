@@ -57,8 +57,8 @@ bool  Audio::_alarm_mode=false;
 bool  Audio::_s2f_mode_back = false;
 unsigned long Audio::next_scedule=0;
 
-uint16_t Audio::_vol_back_vario = 0;
-uint16_t Audio::_vol_back_s2f = 0;
+float Audio::_vol_back_vario = 0;
+float Audio::_vol_back_s2f = 0;
 float Audio::maxf;
 float Audio::minf;
 float Audio::current_frequency;
@@ -73,7 +73,6 @@ int   Audio::prev_scale = -1;
 int   Audio::_tonemode_back = 0;
 int   Audio::tick = 0;
 int   Audio::volume_change=0;
-float Audio::_step = 2;
 bool  Audio::dac_enable=false;
 bool  Audio::amplifier_enable=false;
 bool  Audio::_haveCAT5171=false;
@@ -348,15 +347,13 @@ void Audio::alarm( bool enable, float volume, e_audio_alarm_type_t style ){  // 
 		enableAmplifier( true );
 	}
 	if( !enable && _alarm_mode ){ // End of alarm
+		_alarm_mode = false;
 		vario_mode_volume = _vol_back_vario;
 		s2f_mode_volume = _vol_back_s2f;
-		_s2f_mode = _s2f_mode_back;
 		_tonemode = _tonemode_back;
-		_alarm_mode=false;
-		if( _s2f_mode )
-			writeVolume( s2f_mode_volume );
-		else
-			writeVolume( vario_mode_volume );
+		_s2f_mode = _s2f_mode_back;    // S2F mode from before the alarm
+		calcS2Fmode(true);             // may update the S2F mode
+		writeVolume( speaker_volume );
 	}
 	if( enable ) {  // tune alarm
 		// ESP_LOGI(FNAME,"Alarm sound enable volume: %f style: %d", volume, style );
@@ -438,13 +435,21 @@ void Audio::dac_invert_set(dac_channel_t channel, int invert)
 void Audio::setVolume( float vol ) {
 	volume_change = (vol != speaker_volume) ? 100 : 0;
 	speaker_volume = vol;
-	// also copy the new volume into the cruise-mode specific variables so
-	// that calcS2Fmode() will later restore the same volume as mode changes:
-	if( _s2f_mode )
+	// also copy the new volume into the cruise-mode specific variables so that
+	// calcS2Fmode() will later restore the correct volume when mode changes:
+	if( audio_split_vol.get() ) {
+		if( _s2f_mode )
+			s2f_mode_volume = speaker_volume;
+		else
+			vario_mode_volume = speaker_volume;
+		ESP_LOGI(FNAME, "setvolume() to %f, _s2f_mode %d", speaker_volume, _s2f_mode );
+	} else {
+		// copy to both variables in case audio_split_vol enabled later
 		s2f_mode_volume = speaker_volume;
-	else
 		vario_mode_volume = speaker_volume;
-};
+		ESP_LOGI(FNAME, "setvolume() to %f, mono mode", speaker_volume );
+	}
+}
 
 void Audio::startAudio(){
 	ESP_LOGI(FNAME,"startAudio");
@@ -454,30 +459,35 @@ void Audio::startAudio(){
 	xTaskCreatePinnedToCore(&dactask, "dactask", 2400, NULL, 16, &dactid, 0);
 }
 
-bool Audio::calcS2Fmode(){
+void Audio::calcS2Fmode( bool recalc ){
 	if( _alarm_mode )
-		return false;
+		return;
 	bool mode = Switch::getCruiseState();
-	if( mode != _s2f_mode ){            // mode has changed,
-		if ( audio_split_vol.get() ) {  // need to switch to the other volume level
-			if( mode )
-				speaker_volume = s2f_mode_volume;
-			else
-				speaker_volume = vario_mode_volume;
-			if ( speaker_volume != audio_volume.get() )
-				audio_volume.set( speaker_volume );
-			// - this is to keep the current volume shown (or implied) in the menus
-			//   in step with the actual speaker volume, in case volume is changed
-			//   after the CruiseState has changed.  Calling audio_volume.set() here
-			//   will call the action change_volume() which calls Audio::setVolume()
-			//   which will write it back into speaker_volume and the mode-specific
-			//   variable, and will also set volume_change=100, but all that is OK.
-//		} else {
-//			speaker_volume = vario_mode_volume;
+	if( mode != _s2f_mode ){
+		ESP_LOGI(FNAME, "S2Fmode changed to %d", mode );
+		_s2f_mode = mode;             // do this first, as...
+		recalc = true;
+	}
+	if( recalc ){
+		calculateFrequency();         // this needs the new _stf_mode
+		if( _s2f_mode )
+			speaker_volume = s2f_mode_volume;
+		else
+			speaker_volume = vario_mode_volume;
+		if ( speaker_volume != audio_volume.get() ) {  // due to audio_split_vol
+			ESP_LOGI(FNAME, "... changing volume %f -> %f",
+			     audio_volume.get(), speaker_volume );
+			audio_volume.set( speaker_volume );  // this too needs _stf_mode
+			// this is to keep the current volume shown (or implied) in the menus
+			// in step with the actual speaker volume, in case volume is changed
+			// after the CruiseState has changed.  Calling audio_volume.set() here
+			// will call the action change_volume() which calls Audio::setVolume()
+			// which will write it back into speaker_volume and the mode-specific
+			// variable, and will also set volume_change=100, but all that is OK.
 		}
 	}
-	return mode;
 }
+
 
 void  Audio::evaluateChopping(){
 	if(
@@ -503,7 +513,7 @@ void  Audio::calculateFrequency(){
 		exponent_max  = std::pow( 2, audio_factor.get());
 		prev_aud_fact = audio_factor.get();
 	}
-	float current_frequency = center_freq.get() + ((mult*_te)/range )  * (max_var/exponent_max);
+	current_frequency = center_freq.get() + ((mult*_te)/range )  * (max_var/exponent_max);
 
 	if( hightone && (_tonemode == ATM_DUAL_TONE ) )
 		setFrequency( current_frequency*_high_tone_var );
@@ -561,27 +571,33 @@ void Audio::dactask(void* arg )
 				calculateFrequency();
 			next_scedule = millis()+_delay;
 		}
-		if( audio_variable_frequency.get() )
-			calculateFrequency();
+//		if( audio_variable_frequency.get() )
+//			calculateFrequency();
 		// Amplifier and Volume control
 		if( !_testmode && !(tick%2) ) {
 			// ESP_LOGI(FNAME, "sound dactask tick:%d volume:%f  te:%f db:%d", tick, speaker_volume, _te, inDeadBand(_te) );
+
+			// moved here to call calculateFrequency() less often:
+			if( audio_variable_frequency.get() )
+				calculateFrequency();
+
 			if( !(tick%10) ){
-				bool mode = calcS2Fmode();
-				if( _s2f_mode != mode ){
-					calculateFrequency();
-					_s2f_mode = mode;
-				}
+				calcS2Fmode(false);     // if mode changed, affects volume and frequency
 			}
+
+			int shutdownamp = amplifier_shutdown.get();
+			bool disable_amp = false;
 
 			if( inDeadBand(_te) && !volume_change ){
 				deadband_active = true;
 				sound = false;
+				disable_amp = true;
 				// ESP_LOGI(FNAME,"Audio in DeadBand true");
 			}
 			else{
 				deadband_active = false;
 				sound = true;
+				disable_amp = false;
 				if( _tonemode == ATM_SINGLE_TONE ){
 					if( hightone )
 						if( _chopping )
@@ -589,49 +605,70 @@ void Audio::dactask(void* arg )
 				}
 				// ESP_LOGI(FNAME,"Audio in DeadBand false");
 			}
-			// Optionally disable Sound when in Menu
-			if( audio_disable.get() && gflags.inSetup )
-				sound = false;
+			if( sound ) {
+				if( !_alarm_mode ) {
+					// Optionally disable vario audio when in Sink
+					if( audio_mute_sink.get() && _te < 0 ) {
+						sound = false;
+						disable_amp = true;
+					// Optionally disable vario audio when in setup menu
+					} else if( audio_mute_menu.get() && gflags.inSetup ) {
+						sound = false;
+						disable_amp = true;
+					// Optionally disable vario audio generally
+					} else if( audio_mute_gen.get() != AUDIO_ON ) {
+						sound = false;
+						disable_amp = true;
+					}
+				} else if( audio_mute_gen.get() == AUDIO_OFF ) {
+					// Optionally mute alarms too
+					sound = false;
+					disable_amp = true;
+				}
+			}
 			//ESP_LOGI(FNAME, "sound %d, ht %d, te %2.1f vc:%d cw:%f ", sound, hightone, _te, volume_change, current_volume );
 			if( sound ){
-				if( !deadband_active && amplifier_shutdown.get() ){
+				if( shutdownamp ){
 					enableAmplifier( true );
 				}
+				disable_amp = false;
 				// Blend over gracefully volume changes
-				if(  (current_volume != speaker_volume) && volume_change ){
+				if( (current_volume != speaker_volume) && volume_change ){
 					// ESP_LOGI(FNAME, "volume change, new volume: %f, current_volume %f", speaker_volume, current_volume );
-					float delta = 1;
+					// change volume logarithmically
+					if (current_volume < 3.0)
+						current_volume = 3.0;   // avoid division by zero
+					float g = speaker_volume / current_volume;
+					if (g < 0.25)
+						g = 0.25;
+					g = 1.0 + (g-1.0) / (g + (float)FADING_TIME);
+					// This works for decreasing volume too, e.g.:
+					// if decreasing by 50%, g = 1+(0.5-1)/(0.5+3) = 0.857
+					// This formula is specifically fitted to FADING_TIME=3 though.
+					float f = current_volume;
 					dacEnable();
-					if( speaker_volume > current_volume ){
-						for( float f=current_volume; f<speaker_volume; f+=delta ) {
-							writeVolume( f );
-							delta = _step+f/FADING_TIME;
-							// ESP_LOGI(FNAME, "volume inc, new volume: %f", f );
-							delay(1);
-						}}
-					else{
-						for( float f=current_volume; f>speaker_volume; f-=delta ) {
-							writeVolume( f );
-							// ESP_LOGI(FNAME, "volume dec, new volume: %f", f );
-							delta = _step+f/FADING_TIME;
-							delay(1);
-						}
+					for( int i=0; i<FADING_TIME; i++ ) {
+						f = f * g;
+						if (f > max_volume.get())  f = max_volume.get();
+						writeVolume( f );
+						// ESP_LOGI(FNAME, "new volume: %f", f );
+						delay(1);
 					}
 					writeVolume( speaker_volume );
-					if( current_volume == 0 )
+					if( speaker_volume == 0 )
 						dacDisable();
 					// ESP_LOGI(FNAME, "volume change, new volume: %d", current_volume );
 					// ESP_LOGI(FNAME, "have sound");
 				}
 				// Fade in volume
-				if(  current_volume != speaker_volume ){
+				if( current_volume != speaker_volume ){
 					dacEnable();
 					if( chopping_style.get() == AUDIO_CHOP_HARD ){
 						writeVolume( speaker_volume );
 					}
 					else{
 						float volume=3;
-						for( int i=0; i<FADING_STEPS && volume<=speaker_volume; i++ ) {
+						for( int i=0; i<FADING_STEPS && volume <=speaker_volume; i++ ) {
 							// ESP_LOGI(FNAME, "fade in sound, volume: %3.1f", volume );
 							writeVolume( volume );
 							volume = volume*1.75;
@@ -644,7 +681,7 @@ void Audio::dactask(void* arg )
 					}
 				}
 				if( !(tick%10) ){
-					writeVolume( speaker_volume );
+					writeVolume( speaker_volume );   // <<< why?
 				}
 			}
 			else{
@@ -653,21 +690,21 @@ void Audio::dactask(void* arg )
 					if( chopping_style.get() == AUDIO_CHOP_HARD ){
 						writeVolume( 0 );
 					}else{
-						float volume = speaker_volume;
+						float volume = current_volume;
 						for( int i=0; i<FADING_STEPS && volume > 0; i++ ) {
 							//ESP_LOGI(FNAME, "fade out sound, volume: %3.1f", volume );
-							writeVolume( volume );
 							volume = volume*0.75;
+							writeVolume( volume );
 							if (volume < 3.0)
 								volume = 0;
+							delay(1);
 						}
-						delay(1);
 						writeVolume( 0 );
 						// ESP_LOGI(FNAME, "fade out sound, final volume: 0" );
 					}
 					dacDisable();
 				}
-				if( deadband_active && amplifier_shutdown.get() )
+				if( disable_amp )
 					enableAmplifier( false );
 			}
 		}
@@ -684,6 +721,8 @@ void Audio::dactask(void* arg )
 
 bool Audio::inDeadBand( float te )
 {
+	if( _alarm_mode )
+		return false;
 	float dbp=0.0;
 	float dbn=0.0;
 	if( _s2f_mode && (cruise_audio_mode.get() == AUDIO_S2F)) {
@@ -786,7 +825,7 @@ void Audio::enableAmplifier( bool enable )
 	}
 	else {
 		if( amplifier_enable ){
-			if( amplifier_shutdown.get() ){
+			if( amplifier_shutdown.get() > AMP_STAY_ON ){
 				ESP_LOGI(FNAME,"Audio::disableAmplifier");
 				gpio_set_direction(GPIO_NUM_19, GPIO_MODE_OUTPUT );   // use pullup 1 == SOUND 0 == SILENCE
 				gpio_set_level(GPIO_NUM_19, 0 );
