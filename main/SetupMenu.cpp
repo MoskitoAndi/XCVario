@@ -31,19 +31,26 @@
 #include "WifiClient.h"
 #include "Blackboard.h"
 #include "DataMonitor.h"
-
-#include <inttypes.h>
-#include <iterator>
-#include <algorithm>
-#include <logdef.h>
-#include <sensor.h>
-#include <cstring>
-#include <string>
+#include "KalmanMPU6050.h"
+#include "sensor.h"
 #include "SetupNG.h"
 #include "quaternion.h"
 
+#include <logdef.h>
+#include <inttypes.h>
+#include <iterator>
+#include <algorithm>
+#include <cstring>
+#include <string>
+
 SetupMenuSelect * audio_range_sm = 0;
 SetupMenuSelect * mpu = 0;
+
+SetupMenuValFloat *volume_menu = 0;
+void update_volume_menu_max() {
+	if (volume_menu)
+		volume_menu->setMax( max_volume.get() );
+}
 
 // Menu for flap setup
 
@@ -259,6 +266,34 @@ int add_key( SetupMenuSelect * p )
 		if( mpu->existsEntry( "Enable") )
 			mpu->delEntry( "Enable");
 	}
+	return 0;
+}
+
+static int imu_gaa( SetupMenuValFloat* f )
+{
+	IMU::applyImuReference(f->_value, imu_reference.get());
+	return 0;
+}
+
+static int imu_calib( SetupMenuSelect *p )
+{
+	ESP_LOGI(FNAME,"Collect AHRS data (%d)", p->getSelect() );
+	int sel = p->getSelect();
+	switch (sel) {
+		case 0:
+			break; // cancel
+		case 1:
+			// collect samples
+			IMU::doImuCalibration(p);
+			break;
+		case 2:
+			// reset to default
+			IMU::defaultImuReference();
+			break;
+		default:
+			break;
+	}
+	p->setSelect(0);
 	return 0;
 }
 
@@ -522,8 +557,8 @@ void SetupMenu::down(int count){
 		else{  // Volume
 			float vol = audio_volume.get();
 			for( int i=0; i<count; i++ )
-				vol = vol * 0.83;
-			if( vol<3.0 )
+				vol = vol * 0.77;
+			if( vol<1.5 )            // allow smaller volumes to better support new 50% scale mode of ESP32 sine generator (default is 25%)
 				vol=0;
 			audio_volume.set( vol );
 			// ESP_LOGI(FNAME,"NEW DN VOL: %f", vol );
@@ -563,10 +598,10 @@ void SetupMenu::up(int count){
 		}
 		else{  // Volume
 			float vol = audio_volume.get();
-			if( vol<3.0 )
-				vol=3.0;
+			if( vol<1.5 )
+				vol=1.5;
 			for( int i=0; i<count; i++ )
-				vol = vol * 1.17;
+				vol = vol * 1.33;
 			if( vol > max_volume.get() )
 				vol = max_volume.get();
 			audio_volume.set( vol );
@@ -948,11 +983,13 @@ void SetupMenu::audio_menu_create_equalizer( MenuEntry *top ){
 }
 
 void SetupMenu::audio_menu_create_volume( MenuEntry *top ){
+
 	SetupMenuValFloat * vol = new SetupMenuValFloat( "Current Volume", "%",
 	    0.0, 100.0, 2.0, vol_adj, false, &audio_volume );
 	// unlike top-level menu volume which exits setup, this returns to parent menu
 	vol->setHelp( "Audio volume level for variometer tone on internal and external speaker");
-	vol->setMax(max_volume.get());   // only works after leaving this *parent* menu and returning
+	vol->setMax(max_volume.get());   // this only works after leaving *parent* menu and returning
+	volume_menu = vol;               // but this allows changing the volume menu max later
 	top->addEntry( vol );
 
 	SetupMenuSelect * cdv = new SetupMenuSelect( "Current->Default", RST_NONE, cur_vol_dflt, true );
@@ -965,8 +1002,7 @@ void SetupMenu::audio_menu_create_volume( MenuEntry *top ){
 	top->addEntry( dv );
 	dv->setHelp( "Default volume for Audio when device is switched on");
 
-// after max_volume exit menu, when re-entering will setMax() volume setting above
-	SetupMenuValFloat * mv = new SetupMenuValFloat( "Max Volume", "%", 0, 100, 1.0, 0, true, &max_volume );
+	SetupMenuValFloat * mv = new SetupMenuValFloat( "Max Volume", "%", 0, 100, 1.0, 0, false, &max_volume );
 	top->addEntry( mv );
 	mv->setHelp( "Maximum audio volume setting allowed");
 
@@ -1010,6 +1046,10 @@ void SetupMenu::audio_menu_create_mute( MenuEntry *top ){
 }
 
 void SetupMenu::audio_menu_create( MenuEntry *audio ){
+
+	// volume menu has gone out of scope by now
+	// make sure update_volume_menu_max() does not try and dereference it
+	volume_menu = 0;
 	SetupMenu * volumes = new SetupMenu( "Volume options" );
 	audio->addEntry( volumes );
 	volumes->setHelp( "Configure audio volume options", 240);
@@ -1707,7 +1747,22 @@ void SetupMenu::system_menu_create_hardware_rotary( MenuEntry *top ){
 }
 
 
-static const char   lkeys[][4] { "0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?","@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"};
+void SetupMenu::system_menu_create_ahrs_calib( MenuEntry *top ){
+	SetupMenuSelect* ahrs_calib_collect = new SetupMenuSelect( PROGMEM"Axis calibration", RST_NONE, imu_calib, false);
+	ahrs_calib_collect->setHelp(PROGMEM"Calibrate IMU axis on flat leveled ground ground with no inclination. Run the procedure by selecting Start.");
+	ahrs_calib_collect->addEntry("Cancel");
+	ahrs_calib_collect->addEntry("Start");
+	ahrs_calib_collect->addEntry("Reset");
+
+	SetupMenuValFloat* ahrs_ground_aa = new SetupMenuValFloat( PROGMEM"Ground angle of attack", "°", -5, 20, 1, imu_gaa, false, &glider_ground_aa);
+	ahrs_ground_aa->setHelp(PROGMEM"Angle of attack with tail skid on the ground to adjust the AHRS reference. Change this any time to correct the AHRS horizon level.");
+	ahrs_ground_aa->setPrecision( 0 );
+	top->addEntry( ahrs_calib_collect );
+	top->addEntry( ahrs_ground_aa );
+}
+
+
+static const char PROGMEM lkeys[][4] { "0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?","@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"};
 
 void SetupMenu::system_menu_create_hardware_ahrs_lc( MenuEntry *top ){
 	SetupMenuSelect * ahrslc1 = new SetupMenuSelect( "First    Letter",	RST_NONE, add_key, false, &ahrs_licence_dig1 );
@@ -1724,7 +1779,6 @@ void SetupMenu::system_menu_create_hardware_ahrs_lc( MenuEntry *top ){
 	ahrslc4->addEntryList( lkeys, sizeof(lkeys)/4 );
 }
 
-
 void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
 	SetupMenuValFloat * ahrsgf = new SetupMenuValFloat( "Gyro Max Trust", "x", 0, 100, 1, 0, false, &ahrs_gyro_factor  );
 	ahrsgf->setPrecision( 0 );
@@ -1739,6 +1793,12 @@ void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
 	SetupMenuValFloat * ahrsdgf = new SetupMenuValFloat( "Gyro Dynamics", "", 0.5, 10, 0.1, 0, false, &ahrs_dynamic_factor  );
 	ahrsdgf->setHelp( "Gyro dynamics factor, higher value trusts gyro more when load factor is different from one");
 	top->addEntry( ahrsdgf );
+
+	SetupMenuSelect * ahrsrollcheck = new SetupMenuSelect( "Gyro Roll Check", RST_NONE, nullptr, true, &ahrs_roll_check  );
+	ahrsrollcheck->setHelp( "Switch to test the gyro roll check code.");
+	ahrsrollcheck->addEntry( "Disable");
+	ahrsrollcheck->addEntry( "Enable");
+	top->addEntry( ahrsrollcheck );
 
 	SetupMenuValFloat * gyrog = new SetupMenuValFloat( "Gyro Gating", "°", 0, 10, 0.1, 0, false, &gyro_gating  );
 	gyrog->setHelp( "Minimum accepted gyro rate in degree per second");
@@ -1762,11 +1822,10 @@ void SetupMenu::system_menu_create_hardware_ahrs( MenuEntry *top ){
 	if( gflags.ahrsKeyValid )
 		mpu->addEntry( "Enable");
 
-	SetupMenuSelect * ahrsaz = new SetupMenuSelect( "AHRS Autozero", RST_IMMEDIATE , 0, true, &ahrs_autozero );
-	top->addEntry( ahrsaz );
-	ahrsaz->setHelp( "Start Autozero of AHRS Sensor; Preconditions: On ground; Wings 100% horizontal, fuselage in flight position! (reboots)");
-	ahrsaz->addEntry( "Cancel");
-	ahrsaz->addEntry( "Start");
+	SetupMenu* ahrscalib = new SetupMenu( "AHRS Calibration" );
+	ahrscalib->setHelp( PROGMEM "Bias & Reference of the AHRS Sensor: Place glider on horizontal underground, first the right wing down, then the left wing.");
+	top->addEntry( ahrscalib );
+	ahrscalib->addCreator( system_menu_create_ahrs_calib );
 
 	SetupMenu * ahrslc = new SetupMenu( "AHRS License Key" );
 	ahrslc->setHelp( "Enter valid AHRS License Key, then AHRS feature can be enabled under 'AHRS Option'");
