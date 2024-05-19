@@ -323,27 +323,46 @@ void Flap::drawSmallBar( float wkf ){
 	ucg->undoClipRange();
 }
 
-void Flap::drawLever( int16_t xpos, int16_t ypos, int16_t oldypos, bool warn, bool good ){
-	ucg->setColor(COLOR_BLACK);
-	ucg->drawBox( xpos-25, oldypos-4, 13, 7 );
+void Flap::drawFrame(int16_t xpos, int16_t ypos){
+	ucg->drawFrame( xpos-16, ypos-4, 11, 7 );
+	ucg->drawFrame( xpos-17, ypos-5, 13, 9 );
+}
+
+void Flap::drawLever( int16_t xpos, int16_t ypos, int16_t& oldypos, bool warn, bool good ){
+
+	unsigned int curmillis = millis();
 	if( warn ){
 		// Blink effekt
-		if( warn_color ){
-			ucg->setColor(COLOR_WHITE);
-			warn_color = false;
+		if(curmillis - _millis > 150){
+			ucg->setColor(COLOR_BLACK);
+			drawFrame( xpos, oldypos );
+			if( warn_color ){
+				// ESP_LOGI(FNAME,"WHITE %d", curmillis - _millis);
+				ucg->setColor(COLOR_WHITE);
+				warn_color = false;
+			}
+			else{
+				// ESP_LOGI(FNAME,"RED %d", curmillis - _millis);
+				ucg->setColor(COLOR_RED);
+				warn_color = true;
+			}
+			_millis = curmillis;
+			drawFrame( xpos, ypos );
+			oldypos = ypos;
 		}
-		else{
-			ucg->setColor(COLOR_RED);
-			warn_color = true;
-		}
-	}
-	else if( good ){
-		ucg->setColor(COLOR_GREEN);
 	}
 	else{
-		ucg->setColor(COLOR_WHITE);
+		ucg->setColor(COLOR_BLACK);
+		drawFrame( xpos, oldypos );
+		if( good ){
+			ucg->setColor(COLOR_GREEN);
+		}
+		else{
+			ucg->setColor(COLOR_WHITE);
+		}
+		drawFrame( xpos, ypos );
+		oldypos = ypos;
 	}
-	ucg->drawBox( xpos-25, ypos-4, 13, 7 );
 }
 
 static bool good_old = false;
@@ -375,7 +394,7 @@ void Flap::drawBigBar( float wkf, float wksens ){
 	}
 	// ESP_LOGI(FNAME,"np: %d size: %d",  NUMPOS, size );
 	int16_t yclip = barpos_y+MINPOS*lfh-(lfh/2);
-	ucg->setClipRange( barpos_x-15, yclip, 15, size );
+	ucg->setClipRange( barpos_x-17, yclip, 15, size );
 	int16_t y = barpos_y + (int)((wkf)*(lfh) + 0.5 );
 	int16_t ys = barpos_y + (int)(( wksens )*(lfh) + 0.5 );
 	// ESP_LOGI(FNAME,"wkf: %f", wkf);
@@ -383,7 +402,7 @@ void Flap::drawBigBar( float wkf, float wksens ){
 	tickopt++;
 	bool dirty_lever = false;
 	// ESP_LOGI(FNAME,"drawBigBar wkf: %.2f y:%d lfh:%d", wkf, y, lfh );
-	if( optPosOldY != y || !(tickopt%10)) {  // redraw on change or every second
+	if( optPosOldY != y ) {  // redraw on change or every half second
 		ucg->setColor(COLOR_BLACK);
 		ucg->drawTriangle( barpos_x-15,optPosOldY-5,  barpos_x-15,optPosOldY+5,  barpos_x-2,optPosOldY );
 		ucg->setColor(COLOR_GREEN);
@@ -401,8 +420,11 @@ void Flap::drawBigBar( float wkf, float wksens ){
 		if( flap_sensor.get() ) {
 			// ESP_LOGI(FNAME,"wk lever redraw, old=%d", sensorOldY );
 			drawLever( barpos_x, ys, sensorOldY, warn, good );
-			sensorOldY = ys;
 			good_old = good;
+			if( abs(y-ys) < 12 ){
+				ucg->setColor(COLOR_GREEN);  // redraw triangle
+				ucg->drawTriangle( barpos_x-15,y-5,       barpos_x-15,y+5,       barpos_x-2,y );
+			}
 		}
 	}
 	ucg->setFontPosBottom();

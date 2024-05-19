@@ -236,12 +236,24 @@ int update_wifi_power(SetupMenuValFloat * p)
 	return 0;
 }
 
+
+
 int data_mon( SetupMenuSelect * p ){
 	ESP_LOGI(FNAME,"data_mon( %d ) ", data_monitor.get() );
 	if( data_monitor.get() != MON_OFF ){
 		DM.start(p);
 	}
 	return 0;
+}
+
+int data_monS1( SetupMenuSelect * p ){
+	data_monitor.set( MON_S1 );
+	return( data_mon(p) );
+}
+
+int data_monS2( SetupMenuSelect * p ){
+	data_monitor.set( MON_S2 );
+	return( data_mon(p) );
 }
 
 int update_id( SetupMenuChar * p){
@@ -840,8 +852,9 @@ void SetupMenu::vario_menu_create_s2f( MenuEntry *top ){
 void SetupMenu::vario_menu_create_ec( MenuEntry *top ){
 	SetupMenuSelect * enac = new SetupMenuSelect( "eCompensation", RST_NONE, 0 , false, &te_comp_enable );
 	enac->setHelp( "Enable/Disable electronic TE compensation option; Enable only when TE port is connected to ST (static) pressure");
-	enac->addEntry( "DISABLE");
-	enac->addEntry( "ENABLE");
+	enac->addEntry( "TEK Probe");
+	enac->addEntry( "EPOT");
+	enac->addEntry( "PRESSURE");
 	top->addEntry( enac );
 
 	SetupMenuValFloat * elca = new SetupMenuValFloat( "Adjustment", "%",	-100, 100, 0.1, 0, false, &te_comp_adjust );
@@ -1187,6 +1200,10 @@ void SetupMenu::options_menu_create_flarm( MenuEntry *top ){
 	SetupMenuValFloat * flarmv = new SetupMenuValFloat( "Alarm Volume",  "%", 20, 100, 1, 0, false, &flarm_volume  );
 	flarmv->setHelp( "Maximum audio volume of FLARM alarm warning");
 	top->addEntry( flarmv );
+
+	SetupMenuValFloat * flarmt = new SetupMenuValFloat( "Alarm Timeout",  "sec", 1, 15, 1, 0, false, &flarm_alarm_time  );
+	flarmt->setHelp( "The time FLARM alarm warning keeps displayed after alarm went off");
+	top->addEntry( flarmt );
 
 	SetupMenuSelect * flarms = new SetupMenuSelect( "FLARM Simulation",	RST_NONE, 0, true, &flarm_sim, false, true );
 	flarms->setHelp( "Simulate an airplane crossing from left to right with different alarm levels and vertical distance 5 seconds after pressed (exits setup!)");
@@ -2014,6 +2031,12 @@ void SetupMenu::system_menu_create_interfaceS1( MenuEntry *top ){
 	stxdis1->setHelp( "Option to switch off RS232 TX line in case active sending is not required, e.g. for multiple devices connected to one device  (reboots)");
 	stxdis1->addEntry( "Disable");
 	stxdis1->addEntry( "Enable");
+
+	SetupMenuSelect * datamon = new SetupMenuSelect( "Monitor", RST_NONE, data_monS1, true, &data_monitor );
+	datamon->setHelp( "Short press button to start/pause, long press to terminate data monitor", 260);
+	datamon->addEntry( "Disable");
+	datamon->addEntry( "Start S1 RS232");
+	top->addEntry( datamon );
 }
 
 void SetupMenu::system_menu_create_interfaceS2_routing( MenuEntry *top ){
@@ -2075,6 +2098,11 @@ void SetupMenu::system_menu_create_interfaceS2( MenuEntry *top ){
 	stxdis2->setHelp( "Option to switch off RS232 TX line in case active sending is not required, e.g. for multiple devices connected to one device (reboots)");
 	stxdis2->addEntry( "Disable");
 	stxdis2->addEntry( "Enable");
+
+	SetupMenuSelect * datamon = new SetupMenuSelect( "Monitor", RST_NONE, data_monS2, true, &data_monitor );
+	datamon->setHelp( "Short press button to start/pause, long press to terminate data monitor", 260);
+	datamon->addEntry( "Disable");
+	datamon->addEntry( "Start S2 RS232");
 }
 
 void SetupMenu::system_menu_create_interfaceCAN_routing( MenuEntry *top ){
@@ -2173,6 +2201,13 @@ void SetupMenu::system_menu_create( MenuEntry *sye ){
 	nmea->addEntry( "Cambridge");
 	nmea->addEntry( "XCVario");
 	nmea->addEntry( "Disable");
+
+	SetupMenuSelect * logg = new SetupMenuSelect( "Logging", RST_NONE, 0, true, &logging );
+	logg->setHelp( "Option to log e.g. raw sensor data in NMEA logger in XCSoar");
+	logg->addEntry( "Disable");
+	logg->addEntry( "Sensor RAW Data");
+	sye->addEntry( logg );
+
 }
 
 void SetupMenu::setup_create_root(MenuEntry *top ){
