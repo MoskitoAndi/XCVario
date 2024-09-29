@@ -34,7 +34,6 @@
 #include "KalmanMPU6050.h"
 #include "sensor.h"
 #include "SetupNG.h"
-#include "quaternion.h"
 
 #include <logdef.h>
 #include <inttypes.h>
@@ -143,6 +142,17 @@ int speedcal_change(SetupMenuValFloat * p)
 	return 0;
 }
 
+int set_ahrs_defaults( SetupMenuSelect* p ){
+	if ( p->getSelect() == 1 ) {
+		ahrs_gyro_factor.setDefault();
+		ahrs_min_gyro_factor.setDefault();
+		ahrs_dynamic_factor.setDefault();
+		gyro_gating.setDefault();
+	}
+	p->setSelect(0);
+	return 0;
+}
+
 gpio_num_t SetupMenu::getGearWarningIO(){
 	gpio_num_t io = GPIO_NUM_0;
 	if( gear_warning.get() == GW_FLAP_SENSOR || gear_warning.get() == GW_FLAP_SENSOR_INV ){
@@ -208,7 +218,8 @@ int do_display_test(SetupMenuSelect * p){
 
 int update_s2f_speed(SetupMenuValFloat * p)
 {
-	Switch::setCruiseSpeed( Units::Airspeed2Kmh( s2f_speed.get() ) );
+	ESP_LOGI(FNAME,"sf2_speed: %.1f conv: %.1f",  s2f_speed.get(), Units::Airspeed2Kmh( s2f_speed.get() ) );
+	Switch::setCruiseSpeed( s2f_speed.get() );
 	return 0;
 }
 
@@ -283,7 +294,9 @@ int add_key( SetupMenuSelect * p )
 
 static int imu_gaa( SetupMenuValFloat* f )
 {
-	IMU::applyImuReference(f->_value, imu_reference.get());
+	if ( ! (imu_reference.get() == Quaternion()) ) {
+		IMU::applyImuReference(f->_value, imu_reference.get());
+	}
 	return 0;
 }
 
@@ -752,9 +765,6 @@ void SetupMenu::longPress(){
 	}
 	else{
 		pressed = true;
-#ifdef Quaternionen_Test
-		Quaternion::quaternionen_test();
-#endif
 	}
 }
 
@@ -1696,7 +1706,7 @@ void SetupMenu::system_menu_create_hardware_type( MenuEntry *top ){
 	// Orientation   _display_orientation
 	SetupMenuSelect * diso = new SetupMenuSelect( "Orientation", RST_ON_EXIT, 0, true, &display_orientation );
 	top->addEntry( diso );
-	diso->setHelp( "Display Orientation.  NORMAL means Rotary on right, TOPDOWN means Rotary on left  (reboots)");
+	diso->setHelp( "Display Orientation.  NORMAL means Rotary on left, TOPDOWN means Rotary on right  (reboots). A change will reset the AHRS reference calibration.");
 	diso->addEntry( "NORMAL");
 	diso->addEntry( "TOPDOWN");
 
@@ -1712,6 +1722,11 @@ void SetupMenu::system_menu_create_hardware_type( MenuEntry *top ){
 	dtest->setHelp( "Start display test screens, press rotary to cancel");
 	dtest->addEntry( "Cancel");
 	dtest->addEntry( "Start Test");
+
+	SetupMenuValFloat * dcadj= new SetupMenuValFloat( "Display Clk Adj", "%", -2, 2, 0.1, 0, true, &display_clock_adj, RST_IMMEDIATE  );
+	dcadj->setHelp( "Modify display clock by given percentage (restarts on exit)", 100 );
+	top->addEntry( dcadj );
+
 }
 
 
@@ -1824,9 +1839,16 @@ void SetupMenu::system_menu_create_hardware_ahrs_parameter( MenuEntry *top ){
 	gyrog->setHelp( "Minimum accepted gyro rate in degree per second");
 	top->addEntry( gyrog );
 
-	SetupMenuValFloat * gyrocal = new SetupMenuValFloat( "Gyro Calibration", "", -0.5, 1.5, 0.01, 0, false, &ahrs_gyro_cal  );
-	gyrocal->setHelp( "Gyro calibration factor to increase accuracy of gyro in %/100");
-	top->addEntry( gyrocal );
+	SetupMenuValFloat * tcontrol = new SetupMenuValFloat( "AHRS Temp Control", "", -1, 60, 1, 0, false, &mpu_temperature  );
+	tcontrol->setPrecision( 0 );
+	tcontrol->setHelp( "Regulated target temperature of AHRS silicon chip, if supported in hardware (model > 2023), -1 means OFF");
+	top->addEntry( tcontrol );
+
+	SetupMenuSelect * ahrsdef = new SetupMenuSelect( "Reset to Defaults", RST_NONE, set_ahrs_defaults);
+	top->addEntry( ahrsdef );
+	ahrsdef->setHelp( "Set optimum default values for all AHRS Parameters as determined to the best practice");
+	ahrsdef->addEntry( "Cancel");
+	ahrsdef->addEntry( "Set Defaults");
 
 }
 
@@ -1857,22 +1879,11 @@ void SetupMenu::system_menu_create_hardware_ahrs( MenuEntry *top ){
 	top->addEntry( ahrspa );
 	ahrspa->addCreator( system_menu_create_hardware_ahrs_parameter );
 
-	SetupMenuSelect * ahrsdef = new SetupMenuSelect( "AHRS Defaults", RST_NONE, 0, true, &ahrs_defaults );
-	top->addEntry( ahrsdef );
-	ahrsdef->setHelp( "Set optimum default values for all AHRS Parameters as determined to the best practice");
-	ahrsdef->addEntry( "Cancel");
-	ahrsdef->addEntry( "Set Defaults");
-
 	SetupMenuSelect * rpyl = new SetupMenuSelect( "AHRS RPYL", RST_NONE , 0, true, &ahrs_rpyl_dataset );
 	top->addEntry( rpyl );
 	rpyl->setHelp( "Send LEVIL AHRS like $RPYL sentence for artifical horizon");
 	rpyl->addEntry( "Disable");
 	rpyl->addEntry( "Enable");
-
-	SetupMenuValFloat * tcontrol = new SetupMenuValFloat( "AHRS Temp Control", "", -1, 60, 1, 0, false, &mpu_temperature  );
-	tcontrol->setPrecision( 0 );
-	tcontrol->setHelp( "Regulated target temperature of AHRS silicon chip, if supported in hardware (model > 2023), -1 means OFF");
-	top->addEntry( tcontrol );
 }
 
 

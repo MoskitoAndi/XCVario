@@ -94,7 +94,7 @@ bool StraightWind::getWind( int* direction, float* speed, int *age )
 bool StraightWind::calculateWind()
 {
 	// ESP_LOGI(FNAME,"Straight wind, calculateWind()");
-	if( SetupCommon::isClient() || gflags.inSetup ){
+	if( (wind_enable.get() & WA_STRAIGHT) && (SetupCommon::isClient() || gflags.inSetup) ){
 		ESP_LOGI(FNAME,"No windcalc on client, or setup active");
 		return false;
 	}
@@ -110,10 +110,9 @@ bool StraightWind::calculateWind()
 		gpsStatus = true;
 	}
 	// ESP_LOGI(FNAME,"calculateWind flightMode: %d", CircleStraightWind::getFlightMode() );
-
-	// Check if wind requirements are fulfilled
-	if( (compass_enable.get() != CS_I2C &&  compass_enable.get() != CS_CAN) || compass_calibrated.get() == false || !(wind_enable.get() & WA_STRAIGHT)) {
-		ESP_LOGI(FNAME,"Compass issues: ENA:%d CAL:%d WIND_ENA:%d, abort", compass_enable.get(), compass_calibrated.get(), wind_enable.get() );
+	// Check if straight wind requirements are fulfilled
+	if( (compass_enable.get() != CS_I2C && compass_enable.get() != CS_CAN) || compass_calibrated.get() == false || !(wind_enable.get() & WA_STRAIGHT)) {
+		// ESP_LOGI(FNAME,"Compass issues: ENA:%d CAL:%d WIND_ENA:%d, abort", compass_enable.get(), compass_calibrated.get(), wind_enable.get() );
 		if( !compass_enable.get() )
 			status="Comps Dis";
 		if( !compass_calibrated.get() )

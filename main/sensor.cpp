@@ -30,6 +30,8 @@
 #include "Blackboard.h"
 #include "SetupMenuValFloat.h"
 
+#include "quaternion.h"
+#include "wmm/geomag.h"
 #include <SPI.h>
 #include <AdaptUGC.h>
 #include <OTA.h>
@@ -87,7 +89,7 @@ BMP:
 
 #define CS_bme280BA GPIO_NUM_26   // before CS pin 33
 #define CS_bme280TE GPIO_NUM_33   // before CS pin 26
-#define FREQ_BMP_SPI 13111111/2
+
 #define SPL06_007_BARO 0x77
 #define SPL06_007_TE   0x76
 
@@ -591,7 +593,8 @@ void readSensors(void *pvParameters){
 				dynamicP = p;
 		}
 		_millis=millis();
-
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
 		// ESP_LOGI(FNAME,"AS");
 		xSemaphoreTake(xMutex,portMAX_DELAY );   // Static Pressure
 		bool bok=false;
@@ -605,11 +608,14 @@ void readSensors(void *pvParameters){
 			char log[SSTRLEN];
 			sprintf( log, "$SENS;");
 			int pos = strlen(log);
-			sprintf( log+pos, "%ld;%ld;%.3f;%.3f;%.3f;%.2f;%.3f;%.3f;%.3f;%.3f;%.3f;%.3f", _millis, _millis - _gps_millis, bp, tp, dynamicP, T, IMU::getGliderAccelX(), IMU::getGliderAccelY(), IMU::getGliderAccelZ(),
-					IMU::getGliderGyroX(), IMU::getGliderGyroY(), IMU::getGliderGyroZ() );
+			long int delta = _millis - _gps_millis;
+			if( delta < 0 )
+				delta += 1000;
+			sprintf( log+pos, "%d.%03d,%ld,%.3f,%.3f,%.3f,%.2f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f", (int)(tv.tv_sec%(60*60*24)), (int)(tv.tv_usec / 1000), delta, bp, tp, dynamicP, T, IMU::getGliderAccelX(), IMU::getGliderAccelY(), IMU::getGliderAccelZ(),
+					IMU::getGliderNogateGyroX(), IMU::getGliderNogateGyroY(), IMU::getGliderNogateGyroZ() );
 			if( compass ){
 				pos=strlen(log);
-				sprintf( log+pos,",%d;%d;%d", int( compass->calX() ),int( compass->calY()) , int( compass->calZ() ));
+				sprintf( log+pos,",%d,%d,%d", int( compass->calX() ),int( compass->calY()) , int( compass->calZ() ));
 			}
 			pos=strlen(log);
 			sprintf( log+pos, "\n");
@@ -998,19 +1004,24 @@ void system_startup(void *args){
 			MPU.setGyroOffset(gb);
 		}
 		mpud::raw_axes_t accelRaw;
-		float accel = 0;
+		mpud::float_axes_t accelG;
+		float samples = 0;
 		delay(200);
 		for( auto i=0; i<10; i++ ){
 			esp_err_t err = MPU.acceleration(&accelRaw);  // fetch raw data from the registers
-			if( err != ESP_OK )
+			if( err != ESP_OK ) {
 				ESP_LOGE(FNAME, "AHRS acceleration I2C read error");
-			mpud::float_axes_t accelG = mpud::accelGravity(accelRaw, mpud::ACCEL_FS_8G);  // raw data to gravity
+				continue;
+			}
+			samples++;
+			accelG += mpud::accelGravity(accelRaw, mpud::ACCEL_FS_8G);  // raw data to gravity
 			ESP_LOGI( FNAME,"MPU %.2f", accelG[0] );
 			delay( 10 );
-			accel += accelG[0];
 		}
 		char ahrs[30];
-		sprintf( ahrs,"AHRS Sensor: OK (%.2f g)", accel/10 );
+		accelG /= samples;
+		float accel = sqrt(accelG[0]*accelG[0]+accelG[1]*accelG[1]+accelG[2]*accelG[2]);
+		sprintf( ahrs,"AHRS Sensor: OK (%.2f g)", accel );
 		display->writeText( line++, ahrs );
 		logged_tests += "MPU6050 AHRS test: PASSED\n";
 		IMU::init();
@@ -1218,8 +1229,9 @@ void system_startup(void *args){
 		ESP_LOGI(FNAME,"No SPL06_007 chip detected, now check BMP280");
 		BME280_ESP32_SPI *bmpBA = new BME280_ESP32_SPI();
 		BME280_ESP32_SPI *bmpTE= new BME280_ESP32_SPI();
-		bmpBA->setSPIBus(SPI_SCLK, SPI_MOSI, SPI_MISO, CS_bme280BA, FREQ_BMP_SPI);
-		bmpTE->setSPIBus(SPI_SCLK, SPI_MOSI, SPI_MISO, CS_bme280TE, FREQ_BMP_SPI);
+		int spi_freq=rint( FREQ_BMP_SPI / 2 * ((100.0 + display_clock_adj.get())/100.0));
+		bmpBA->setSPIBus(SPI_SCLK, SPI_MOSI, SPI_MISO, CS_bme280BA, spi_freq);
+		bmpTE->setSPIBus(SPI_SCLK, SPI_MOSI, SPI_MISO, CS_bme280TE, spi_freq);
 		bmpTE->begin();
 		bmpBA->begin();
 		baroSensor = bmpBA;
@@ -1595,6 +1607,12 @@ extern "C" void  app_main(void)
 		ESP_LOGI(FNAME,"Setup already present");
 	esp_log_level_set("*", ESP_LOG_INFO);
 
+#ifdef Quaternionen_Test
+		Quaternion::quaternionen_test();
+#endif
+#ifdef WMM_Test
+		WMM_Model::geomag_test();
+#endif
 	system_startup( 0 );
 	vTaskDelete( NULL );
 }
