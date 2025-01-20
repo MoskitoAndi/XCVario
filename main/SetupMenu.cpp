@@ -598,8 +598,9 @@ void SetupMenu::down(int count){
 	ucg->setColor(COLOR_BLACK);
 	ucg->drawFrame( 1,(highlight+1)*25+3,238,25 );
 	ucg->setColor(COLOR_WHITE);
-	while( (highlight  > -1) && count ){
-		highlight --;
+	count &= 7;     // limit to some maximum
+	while( /* (highlight  >= -1) && */ count > 0 ){
+		highlight--;
 		count--;
 	}
 	if( highlight < -1 )
@@ -643,8 +644,9 @@ void SetupMenu::up(int count){
 	ucg->setColor(COLOR_BLACK);
 	ucg->drawFrame( 1,(highlight+1)*25+3,238,25 );
 	ucg->setColor(COLOR_WHITE);
-	while( highlight < (int)(_childs.size()-1) && count ){
-		highlight ++;
+	count &= 7;     // limit to some maximum
+	while( /* highlight <= (int)(_childs.size()-1) && */ count > 0 ){
+		highlight++;
 		count--;
 	}
 	if( highlight > (int)(_childs.size()-1) ){
@@ -2114,6 +2116,7 @@ void SetupMenu::system_menu_create_interfaceS2( MenuEntry *top ){
 	datamon->setHelp( "Short press button to start/pause, long press to terminate data monitor", 260);
 	datamon->addEntry( "Disable");
 	datamon->addEntry( "Start S2 RS232");
+	top->addEntry( datamon );
 }
 
 void SetupMenu::system_menu_create_interfaceCAN_routing( MenuEntry *top ){
